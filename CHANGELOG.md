@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+## [0.4.0-alpha] - 2026-08-16
+
+### Added
+
+- New StructuralOffice application icon for the executable, window, installer, and shortcuts.
+- Revision-safe CRUD and edit-presence workflows for contacts, topics, routines,
+  occurrences, and invoices.
+- Invoice CSV/Excel import, CSV/Excel export, templates, and batch document generation.
+- Accounting task batches, invoice membership, and editable escalation rules.
+- Administration for roles, backups, restore/download/delete, notifications, audit,
+  and persisted change events.
+
 ## [0.3.0-alpha] - 2026-08-16
 
 ### Added

@@ -20,9 +20,17 @@ is selected, the refresh token is stored in Windows Credential Manager and excha
 for a short-lived access token at application startup.
 
 After authentication, the native application shell shows the verified Home Assistant
-and StructuralOffice status on its dashboard. Navigation foundations are available for
-contacts, topics, routines, tasks, invoices, documents, and settings. These modules are
-intentionally prepared as placeholders for the next domain-development milestones.
+and StructuralOffice status on its dashboard. Version `0.4.0-alpha` requires the
+StructuralOffice Home Assistant integration `0.6.0-alpha` or newer and provides:
+
+- revision-safe create, edit, presence, and archive workflows for contacts, topics,
+  routines, and invoices;
+- materialized task status updates and accounting-task membership views;
+- CSV and Excel invoice preview/import plus CSV, Excel, and template export;
+- payment-reminder and dunning-document generation for one or several invoices;
+- accounting escalation-rule editing;
+- administrator access to user roles, backups, restore/download/delete operations,
+  test notifications, audit entries, and persisted change events.
 
 ## Build an installable package
 
@@ -63,7 +71,7 @@ Failures never prevent startup and are logged to
 
 ## Architecture
 
-`IStructuralOfficeBackend` is the application boundary. `HomeAssistantBackend` is the
-first implementation. A future standalone release can implement the same interface
-with a local service and database without coupling the user interface to Home
-Assistant HTTP endpoints.
+`IStructuralOfficeBackend` and `IStructuralOfficeDataBackend` form the application
+boundary. `HomeAssistantBackend` is the first implementation and combines the
+authenticated REST and WebSocket contracts. A future standalone release can implement
+the same domain operations with a local service and database.

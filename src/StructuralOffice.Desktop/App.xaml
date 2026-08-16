@@ -24,6 +24,24 @@
             <Setter Property="Padding" Value="12,9" />
             <Setter Property="FontSize" Value="14" />
         </Style>
+        <Style TargetType="ComboBox">
+            <Setter Property="Background" Value="#17202E" />
+            <Setter Property="Foreground" Value="#E8EDF7" />
+            <Setter Property="BorderBrush" Value="#39445A" />
+            <Setter Property="Padding" Value="10,7" />
+        </Style>
+        <Style TargetType="DataGridColumnHeader">
+            <Setter Property="Background" Value="#1B2433" />
+            <Setter Property="Foreground" Value="#C8D2E3" />
+            <Setter Property="BorderBrush" Value="#2B3342" />
+            <Setter Property="Padding" Value="10,9" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style TargetType="DataGridCell">
+            <Setter Property="Foreground" Value="#E8EDF7" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="9,7" />
+        </Style>
         <Style TargetType="Button">
             <Setter Property="Background" Value="{StaticResource AccentBrush}" />
             <Setter Property="Foreground" Value="White" />
