@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+## [0.5.0-alpha] - 2026-08-17
+
+### Added
+
+- Native contact and topic forms with client-side validation.
+- Editable topic checklists with priority, duration, required, and enabled fields.
+- Search and archived-record filtering for data modules.
+- Human-readable revision-conflict and active-editor information.
+
 ## [0.4.0-alpha] - 2026-08-16
 
 ### Added

@@ -24,7 +24,7 @@
                     <StackPanel DockPanel.Dock="Bottom">
                         <TextBlock Text="Sichere Anmeldung über Home Assistant"
                                    Foreground="#657086" FontSize="11" TextWrapping="Wrap" />
-                        <TextBlock Text="Version 0.4.0-alpha" Foreground="#657086"
+                        <TextBlock Text="Version 0.5.0-alpha" Foreground="#657086"
                                    FontSize="11" Margin="0,5,0,0" />
                     </StackPanel>
                 </DockPanel>
@@ -105,7 +105,7 @@
                             <Image Source="Assets/icon.png" Width="38" Height="38" />
                             <StackPanel Margin="11,0,0,0" VerticalAlignment="Center">
                                 <TextBlock Text="StructuralOffice" FontSize="17" FontWeight="SemiBold" />
-                                <TextBlock Text="0.4.0-alpha" FontSize="10" Foreground="#657086" />
+                                <TextBlock Text="0.5.0-alpha" FontSize="10" Foreground="#657086" />
                             </StackPanel>
                         </StackPanel>
 
@@ -298,6 +298,16 @@
                                             Style="{StaticResource SecondaryButtonStyle}"
                                             Click="EndEditingButton_OnClick" />
                                 </WrapPanel>
+                                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Margin="12,0,0,0">
+                                    <TextBox x:Name="ModuleSearchBox" Width="190" Padding="9,6"
+                                             ToolTip="Datensätze durchsuchen"
+                                             TextChanged="ModuleSearchBox_OnTextChanged" />
+                                    <CheckBox x:Name="IncludeArchivedBox" Content="Archivierte"
+                                              Margin="12,0,0,0" VerticalAlignment="Center"
+                                              Foreground="#C8D2E3"
+                                              Checked="IncludeArchivedBox_OnChanged"
+                                              Unchecked="IncludeArchivedBox_OnChanged" />
+                                </StackPanel>
                                 <TextBlock x:Name="ModuleBusyText" HorizontalAlignment="Right"
                                            VerticalAlignment="Center" Foreground="#91A1B8" />
                             </DockPanel>
@@ -390,9 +400,100 @@
                                         <TextBlock x:Name="EditorTitleText" Text="Datensatz" FontSize="17" FontWeight="SemiBold" />
                                         <TextBlock x:Name="EditorMetaText" Foreground="#718096" FontSize="11" Margin="0,4,0,12" />
                                     </StackPanel>
-                                    <TextBox x:Name="RecordEditorText" Grid.Row="1" AcceptsReturn="True" AcceptsTab="True"
-                                             VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
-                                             FontFamily="Cascadia Mono, Consolas" FontSize="12" TextWrapping="NoWrap" />
+                                    <Grid Grid.Row="1">
+                                        <TextBox x:Name="RecordEditorText" AcceptsReturn="True" AcceptsTab="True"
+                                                 VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
+                                                 FontFamily="Cascadia Mono, Consolas" FontSize="12" TextWrapping="NoWrap" />
+
+                                        <ScrollViewer x:Name="ContactEditorPanel" Visibility="Collapsed"
+                                                      VerticalScrollBarVisibility="Auto">
+                                            <StackPanel Margin="1">
+                                                <TextBlock Text="Name *" Margin="0,0,0,5" />
+                                                <TextBox x:Name="ContactNameBox" Margin="0,0,0,12" />
+                                                <Grid Margin="0,0,0,12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="12" />
+                                                        <ColumnDefinition /></Grid.ColumnDefinitions>
+                                                    <StackPanel>
+                                                        <TextBlock Text="Kundennummer" Margin="0,0,0,5" />
+                                                        <TextBox x:Name="ContactCustomerNumberBox" />
+                                                    </StackPanel>
+                                                    <StackPanel Grid.Column="2">
+                                                        <TextBlock Text="Telefon" Margin="0,0,0,5" />
+                                                        <TextBox x:Name="ContactPhoneBox" />
+                                                    </StackPanel>
+                                                </Grid>
+                                                <TextBlock Text="E-Mail" Margin="0,0,0,5" />
+                                                <TextBox x:Name="ContactEmailBox" Margin="0,0,0,12" />
+                                                <TextBlock Text="Adresse" Margin="0,0,0,5" />
+                                                <TextBox x:Name="ContactAddressBox" AcceptsReturn="True" Height="72"
+                                                         TextWrapping="Wrap" Margin="0,0,0,12" />
+                                                <TextBlock Text="Notiz" Margin="0,0,0,5" />
+                                                <TextBox x:Name="ContactNoteBox" AcceptsReturn="True" Height="95"
+                                                         TextWrapping="Wrap" />
+                                            </StackPanel>
+                                        </ScrollViewer>
+
+                                        <ScrollViewer x:Name="TopicEditorPanel" Visibility="Collapsed"
+                                                      VerticalScrollBarVisibility="Auto">
+                                            <StackPanel Margin="1">
+                                                <TextBlock Text="Name *" Margin="0,0,0,5" />
+                                                <TextBox x:Name="TopicNameBox" Margin="0,0,0,12" />
+                                                <TextBlock Text="Beschreibung" Margin="0,0,0,5" />
+                                                <TextBox x:Name="TopicDescriptionBox" AcceptsReturn="True" Height="65"
+                                                         TextWrapping="Wrap" Margin="0,0,0,12" />
+                                                <Grid Margin="0,0,0,12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="10" />
+                                                        <ColumnDefinition /><ColumnDefinition Width="10" />
+                                                        <ColumnDefinition /></Grid.ColumnDefinitions>
+                                                    <StackPanel>
+                                                        <TextBlock Text="Kategorie" Margin="0,0,0,5" />
+                                                        <TextBox x:Name="TopicCategoryBox" />
+                                                    </StackPanel>
+                                                    <StackPanel Grid.Column="2">
+                                                        <TextBlock Text="Priorität" Margin="0,0,0,5" />
+                                                        <ComboBox x:Name="TopicPriorityBox" SelectedIndex="1">
+                                                            <ComboBoxItem Content="Niedrig" Tag="low" />
+                                                            <ComboBoxItem Content="Normal" Tag="normal" />
+                                                            <ComboBoxItem Content="Hoch" Tag="high" />
+                                                            <ComboBoxItem Content="Kritisch" Tag="critical" />
+                                                        </ComboBox>
+                                                    </StackPanel>
+                                                    <StackPanel Grid.Column="4">
+                                                        <TextBlock Text="Minuten" Margin="0,0,0,5" />
+                                                        <TextBox x:Name="TopicMinutesBox" Text="0" />
+                                                    </StackPanel>
+                                                </Grid>
+                                                <CheckBox x:Name="TopicEnabledBox" Content="Thema aktiv"
+                                                          Foreground="#E8EDF7" IsChecked="True" Margin="0,0,0,12" />
+                                                <TextBlock Text="Arbeitsanleitung" Margin="0,0,0,5" />
+                                                <TextBox x:Name="TopicInstructionsBox" AcceptsReturn="True" Height="80"
+                                                         TextWrapping="Wrap" Margin="0,0,0,12" />
+                                                <DockPanel Margin="0,0,0,7">
+                                                    <TextBlock Text="Checkliste" FontWeight="SemiBold"
+                                                               VerticalAlignment="Center" />
+                                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                                        <Button Content="Punkt hinzufügen" Padding="10,6"
+                                                                Click="AddTopicStepButton_OnClick" Margin="0,0,7,0" />
+                                                        <Button Content="Entfernen" Padding="10,6"
+                                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                                Click="RemoveTopicStepButton_OnClick" />
+                                                    </StackPanel>
+                                                </DockPanel>
+                                                <DataGrid x:Name="TopicStepsGrid" AutoGenerateColumns="False"
+                                                          CanUserAddRows="False" MinHeight="180" MaxHeight="260"
+                                                          Background="#111620" Foreground="#E8EDF7"
+                                                          RowBackground="#111620" AlternatingRowBackground="#151B26"
+                                                          HorizontalGridLinesBrush="#2B3342" VerticalGridLinesBrush="#2B3342">
+                                                    <DataGrid.Columns>
+                                                        <DataGridTextColumn Header="Titel *" Binding="{Binding Title, UpdateSourceTrigger=PropertyChanged}" Width="2*" />
+                                                        <DataGridCheckBoxColumn Header="Pflicht" Binding="{Binding Required}" Width="65" />
+                                                        <DataGridTextColumn Header="Min." Binding="{Binding EstimatedMinutes}" Width="55" />
+                                                        <DataGridCheckBoxColumn Header="Aktiv" Binding="{Binding Enabled}" Width="55" />
+                                                    </DataGrid.Columns>
+                                                </DataGrid>
+                                            </StackPanel>
+                                        </ScrollViewer>
+                                    </Grid>
                                     <TextBlock x:Name="EditorHelpText" Grid.Row="2" Foreground="#718096"
                                                FontSize="11" Margin="0,10,0,0" TextWrapping="Wrap" />
                                 </Grid>

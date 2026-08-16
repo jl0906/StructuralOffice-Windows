@@ -1,6 +1,7 @@
 using System.IO;
 using System.Linq;
 using System.Net.Http;
+using System.Collections.ObjectModel;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Windows;
@@ -26,6 +27,8 @@ public partial class MainWindow : Window
     private string? _editSessionId;
     private string? _editRecordId;
     private string? _editCollection;
+    private List<DisplayRecord> _allDisplayRows = [];
+    private readonly ObservableCollection<TopicStepModel> _topicSteps = [];
 
     private static readonly JsonSerializerOptions PrettyJson = new() { WriteIndented = true };
 
@@ -73,6 +76,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        TopicStepsGrid.ItemsSource = _topicSteps;
         Loaded += OnLoaded;
         Closed += (_, _) => _backend?.Dispose();
     }
@@ -360,10 +364,22 @@ public partial class MainWindow : Window
         ContextActionsPanel.Visibility = all.Any(item => item.Visibility == Visibility.Visible)
             ? Visibility.Visible
             : Visibility.Collapsed;
+        var isContactEditor = pageKey == "contacts";
+        var isTopicEditor = pageKey == "topics";
+        ContactEditorPanel.Visibility = isContactEditor ? Visibility.Visible : Visibility.Collapsed;
+        TopicEditorPanel.Visibility = isTopicEditor ? Visibility.Visible : Visibility.Collapsed;
+        RecordEditorText.Visibility = isContactEditor || isTopicEditor
+            ? Visibility.Collapsed
+            : Visibility.Visible;
         RecordEditorText.IsReadOnly = !isLiveEditor;
-        EditorHelpText.Text = isLiveEditor
-            ? "JSON-Felder können bearbeitet werden. Revisionen schützen vor dem Überschreiben paralleler Änderungen."
-            : "Diese Ansicht zeigt die vom StructuralOffice-Backend gespeicherten Daten vollständig an.";
+        IncludeArchivedBox.Visibility = isLiveEditor ? Visibility.Visible : Visibility.Collapsed;
+        EditorHelpText.Text = isContactEditor
+            ? "Pflichtfelder sind mit * gekennzeichnet. Änderungen werden revisionssicher gespeichert."
+            : isTopicEditor
+                ? "Checklistenpunkte können direkt bearbeitet und per Auswahl entfernt werden."
+                : isLiveEditor
+                    ? "JSON-Felder können bearbeitet werden. Revisionen schützen vor parallelen Änderungen."
+                    : "Diese Ansicht zeigt die vom StructuralOffice-Backend gespeicherten Daten vollständig an.";
     }
 
     private static void SetVisibility(bool visible, params UIElement[] elements)
@@ -395,9 +411,10 @@ public partial class MainWindow : Window
             case "contacts":
             case "topics":
             case "routines":
-            case "invoices":
-                _currentDataMode = "live";
-                LoadRows((await _backend.GetLiveRecordsAsync(_currentPage)).Items);
+                case "invoices":
+                    _currentDataMode = "live";
+                    LoadRows((await _backend.GetLiveRecordsAsync(
+                        _currentPage, IncludeArchivedBox.IsChecked == true)).Items);
                 break;
             case "tasks":
                 _currentDataMode = "tasks";
@@ -425,7 +442,7 @@ public partial class MainWindow : Window
                 var check = await _backend.CheckAsync();
                 var data = new JsonObject
                 {
-                    ["application_version"] = "0.4.0-alpha",
+                    ["application_version"] = "0.5.0-alpha",
                     ["backend"] = _backend.DisplayName,
                     ["integration_version"] = check.IntegrationVersion,
                     ["server"] = _session?.ServerAddress.ToString(),
@@ -467,13 +484,25 @@ public partial class MainWindow : Window
 
     private void LoadRows(IEnumerable<BackendRecord> records)
     {
-        var rows = records.Select(CreateDisplayRecord).ToList();
-        ModuleDataGrid.ItemsSource = rows;
-        ModuleBusyText.Text = $"{rows.Count} Einträge";
+        _allDisplayRows = records.Select(CreateDisplayRecord).ToList();
         _selectedRecord = null;
-        RecordEditorText.Clear();
+        ClearEditor();
         EditorTitleText.Text = "Datensatz auswählen";
         EditorMetaText.Text = string.Empty;
+        ApplyModuleFilter();
+    }
+
+    private void ApplyModuleFilter()
+    {
+        var query = ModuleSearchBox.Text.Trim();
+        var rows = string.IsNullOrWhiteSpace(query)
+            ? _allDisplayRows
+            : _allDisplayRows.Where(item =>
+                item.SearchText.Contains(query, StringComparison.CurrentCultureIgnoreCase)).ToList();
+        ModuleDataGrid.ItemsSource = rows;
+        ModuleBusyText.Text = string.IsNullOrWhiteSpace(query)
+            ? $"{rows.Count} Einträge"
+            : $"{rows.Count} von {_allDisplayRows.Count} Einträgen";
         if (rows.Count > 0)
         {
             ModuleDataGrid.SelectedIndex = 0;
@@ -489,10 +518,13 @@ public partial class MainWindow : Window
         {
             title = record.Id;
         }
-        var status = FirstText(data, "status", "role", "due_state", "enabled", "operation");
+        var status = record.ArchivedAt is not null
+            ? "archiviert"
+            : FirstText(data, "status", "role", "due_state", "enabled", "operation");
         var detail = FirstText(data, "email", "category", "due_date", "due_at",
             "source_name", "collection", "updated_at");
-        return new DisplayRecord(record, title, status, detail, record.Revision);
+        var searchText = string.Join(' ', title, status, detail, data.ToJsonString());
+        return new DisplayRecord(record, title, status, detail, record.Revision, searchText);
     }
 
     private static string FirstText(JsonObject data, params string[] names)
@@ -519,11 +551,88 @@ public partial class MainWindow : Window
             return;
         }
         EditorTitleText.Text = _selectedRecord.Title;
-        EditorMetaText.Text = $"ID: {_selectedRecord.Record.Id}  ·  Revision {_selectedRecord.Record.Revision}";
-        RecordEditorText.Text = _selectedRecord.Record.Data.ToJsonString(PrettyJson);
+        var archived = _selectedRecord.Record.ArchivedAt is not null;
+        EditorMetaText.Text = $"ID: {_selectedRecord.Record.Id}  ·  Revision {_selectedRecord.Record.Revision}" +
+                              (archived ? "  ·  archiviert" : string.Empty);
+        SaveRecordButton.IsEnabled = !archived;
+        ArchiveRecordButton.IsEnabled = !archived;
+        StartEditingButton.IsEnabled = !archived;
+        ContactEditorPanel.IsEnabled = !archived;
+        TopicEditorPanel.IsEnabled = !archived;
+        RecordEditorText.IsReadOnly = archived ||
+                                      _currentDataMode is not ("live" or "accounting-rules");
+        LoadRecordIntoEditor(_selectedRecord.Record);
         if (_currentDataMode == "administration-roles")
         {
             SelectComboValue(RoleBox, FirstText(_selectedRecord.Record.Data, "role") ?? "viewer");
+        }
+    }
+
+    private void LoadRecordIntoEditor(BackendRecord record)
+    {
+        if (_currentPage == "contacts")
+        {
+            var contact = ContactRecordModel.FromJson(record.Data);
+            ContactNameBox.Text = contact.Name;
+            ContactCustomerNumberBox.Text = contact.CustomerNumber;
+            ContactEmailBox.Text = contact.Email;
+            ContactPhoneBox.Text = contact.Phone;
+            ContactAddressBox.Text = contact.Address;
+            ContactNoteBox.Text = contact.Note;
+            return;
+        }
+        if (_currentPage == "topics")
+        {
+            var topic = TopicRecordModel.FromJson(record.Data);
+            TopicNameBox.Text = topic.Name;
+            TopicDescriptionBox.Text = topic.Description;
+            TopicCategoryBox.Text = topic.Category;
+            TopicMinutesBox.Text = topic.EstimatedMinutes.ToString();
+            TopicInstructionsBox.Text = topic.Instructions;
+            TopicEnabledBox.IsChecked = topic.Enabled;
+            SelectComboTag(TopicPriorityBox, topic.Priority);
+            _topicSteps.Clear();
+            foreach (var step in topic.Steps)
+            {
+                _topicSteps.Add(step);
+            }
+            return;
+        }
+        RecordEditorText.Text = record.Data.ToJsonString(PrettyJson);
+    }
+
+    private void ClearEditor()
+    {
+        RecordEditorText.Clear();
+        ContactNameBox.Clear();
+        ContactCustomerNumberBox.Clear();
+        ContactEmailBox.Clear();
+        ContactPhoneBox.Clear();
+        ContactAddressBox.Clear();
+        ContactNoteBox.Clear();
+        TopicNameBox.Clear();
+        TopicDescriptionBox.Clear();
+        TopicCategoryBox.Clear();
+        TopicMinutesBox.Text = "0";
+        TopicInstructionsBox.Clear();
+        TopicEnabledBox.IsChecked = true;
+        TopicPriorityBox.SelectedIndex = 1;
+        _topicSteps.Clear();
+    }
+
+    private void ModuleSearchBox_OnTextChanged(object sender, TextChangedEventArgs eventArgs)
+    {
+        if (IsLoaded)
+        {
+            ApplyModuleFilter();
+        }
+    }
+
+    private async void IncludeArchivedBox_OnChanged(object sender, RoutedEventArgs eventArgs)
+    {
+        if (_authenticated && _currentDataMode == "live" && !_moduleBusy)
+        {
+            await LoadCurrentPageAsync();
         }
     }
 
@@ -536,8 +645,25 @@ public partial class MainWindow : Window
         ModuleDataGrid.SelectedItem = null;
         EditorTitleText.Text = "Neuer Datensatz";
         EditorMetaText.Text = "Wird beim Speichern angelegt";
-        RecordEditorText.Text = NewRecordTemplate(_currentPage).ToJsonString(PrettyJson);
-        RecordEditorText.Focus();
+        SaveRecordButton.IsEnabled = true;
+        ArchiveRecordButton.IsEnabled = false;
+        StartEditingButton.IsEnabled = false;
+        ContactEditorPanel.IsEnabled = true;
+        TopicEditorPanel.IsEnabled = true;
+        RecordEditorText.IsReadOnly = false;
+        ClearEditor();
+        if (_currentPage is "contacts" or "topics")
+        {
+            if (_currentPage == "topics")
+            {
+                _topicSteps.Add(new TopicStepModel { Id = "step-0", Title = "" });
+            }
+        }
+        else
+        {
+            RecordEditorText.Text = NewRecordTemplate(_currentPage).ToJsonString(PrettyJson);
+            RecordEditorText.Focus();
+        }
     }
 
     private static JsonObject NewRecordTemplate(string pageKey) => pageKey switch
@@ -586,8 +712,7 @@ public partial class MainWindow : Window
         }
         await RunModuleActionAsync(async () =>
         {
-            var data = JsonNode.Parse(RecordEditorText.Text) as JsonObject
-                       ?? throw new InvalidDataException("Der Inhalt muss ein JSON-Objekt sein.");
+            var data = ReadEditorData();
             if (_currentDataMode == "accounting-rules" && _selectedRecord is not null)
             {
                 await _backend.UpdateAccountingRuleAsync(
@@ -612,6 +737,70 @@ public partial class MainWindow : Window
             await EndCurrentEditSessionCoreAsync();
             await LoadCurrentPageCoreAsync();
         }, "Datensatz gespeichert.");
+    }
+
+    private JsonObject ReadEditorData()
+    {
+        if (_currentPage == "contacts")
+        {
+            return new ContactRecordModel
+            {
+                Id = _selectedRecord?.Record.Id ?? string.Empty,
+                Name = ContactNameBox.Text,
+                CustomerNumber = ContactCustomerNumberBox.Text,
+                Email = ContactEmailBox.Text,
+                Phone = ContactPhoneBox.Text,
+                Address = ContactAddressBox.Text,
+                Note = ContactNoteBox.Text
+            }.ToJson();
+        }
+        if (_currentPage == "topics")
+        {
+            TopicStepsGrid.CommitEdit(DataGridEditingUnit.Cell, true);
+            TopicStepsGrid.CommitEdit(DataGridEditingUnit.Row, true);
+            if (!int.TryParse(TopicMinutesBox.Text.Trim(), out var minutes))
+            {
+                throw new InvalidDataException("Bitte die Bearbeitungsdauer als ganze Zahl eingeben.");
+            }
+            var topic = new TopicRecordModel
+            {
+                Id = _selectedRecord?.Record.Id ?? string.Empty,
+                Name = TopicNameBox.Text,
+                Description = TopicDescriptionBox.Text,
+                Category = TopicCategoryBox.Text,
+                Priority = SelectedTag(TopicPriorityBox) ?? "normal",
+                EstimatedMinutes = minutes,
+                Instructions = TopicInstructionsBox.Text,
+                Enabled = TopicEnabledBox.IsChecked == true
+            };
+            foreach (var step in _topicSteps)
+            {
+                topic.Steps.Add(step);
+            }
+            return topic.ToJson();
+        }
+        return JsonNode.Parse(RecordEditorText.Text) as JsonObject
+               ?? throw new InvalidDataException("Der Inhalt muss ein JSON-Objekt sein.");
+    }
+
+    private void AddTopicStepButton_OnClick(object sender, RoutedEventArgs eventArgs)
+    {
+        var step = new TopicStepModel
+        {
+            Id = $"step-{Guid.NewGuid():N}",
+            Title = "Neuer Checklistenpunkt"
+        };
+        _topicSteps.Add(step);
+        TopicStepsGrid.SelectedItem = step;
+        TopicStepsGrid.ScrollIntoView(step);
+    }
+
+    private void RemoveTopicStepButton_OnClick(object sender, RoutedEventArgs eventArgs)
+    {
+        if (TopicStepsGrid.SelectedItem is TopicStepModel step)
+        {
+            _topicSteps.Remove(step);
+        }
     }
 
     private async void ArchiveRecordButton_OnClick(object sender, RoutedEventArgs eventArgs)
@@ -662,7 +851,15 @@ public partial class MainWindow : Window
         await RunModuleActionAsync(async () =>
         {
             var result = await _backend.GetEditorsAsync(_currentPage, _selectedRecord.Record.Id);
-            MessageBox.Show(result.ToJsonString(PrettyJson), "Aktive Bearbeiter",
+            var editors = result["editors"] is JsonArray items
+                ? items.OfType<JsonObject>().Select(item =>
+                    $"• {FirstText(item, "user_name")} – bis {FormatTimestamp(FirstText(item, "expires_at"))}")
+                    .ToList()
+                : [];
+            var message = editors.Count == 0
+                ? "Dieser Datensatz wird aktuell von niemandem bearbeitet."
+                : string.Join(Environment.NewLine, editors);
+            MessageBox.Show(message, "Aktive Bearbeiter",
                 MessageBoxButton.OK, MessageBoxImage.Information);
         });
     }
@@ -945,7 +1142,15 @@ public partial class MainWindow : Window
         {
             if (exception.ErrorCode == "revision_conflict" && exception.CurrentRecord is not null)
             {
-                RecordEditorText.Text = exception.CurrentRecord.Data.ToJsonString(PrettyJson);
+                _selectedRecord = CreateDisplayRecord(exception.CurrentRecord);
+                LoadRecordIntoEditor(exception.CurrentRecord);
+                EditorMetaText.Text = $"Neueste Backendversion · Revision {exception.CurrentRecord.Revision}";
+                MessageBox.Show(
+                    "Der Datensatz wurde zwischenzeitlich von einer anderen Person geändert. " +
+                    "Die aktuelle Backendversion wurde geladen. Bitte prüfe deine Eingaben erneut.",
+                    "Änderungskonflikt", MessageBoxButton.OK, MessageBoxImage.Warning);
+                ModuleBusyText.Text = "Aktuelle Version geladen";
+                return;
             }
             MessageBox.Show(exception.Message, "StructuralOffice-Backend",
                 MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -982,10 +1187,27 @@ public partial class MainWindow : Window
         }
     }
 
+    private static void SelectComboTag(ComboBox box, string value)
+    {
+        foreach (var item in box.Items.OfType<ComboBoxItem>())
+        {
+            if (string.Equals(item.Tag?.ToString(), value, StringComparison.OrdinalIgnoreCase))
+            {
+                box.SelectedItem = item;
+                return;
+            }
+        }
+    }
+
     private static string BackupFilename(DisplayRecord record) =>
         FirstText(record.Record.Data, "filename") is { Length: > 0 } filename
             ? filename
             : record.Record.Id;
+
+    private static string FormatTimestamp(string value) =>
+        DateTimeOffset.TryParse(value, out var timestamp)
+            ? timestamp.ToLocalTime().ToString("dd.MM.yyyy HH:mm")
+            : value;
 
     private void UpdateWorkspaceStatus(
         HomeAssistantSession session,
@@ -1029,5 +1251,6 @@ public partial class MainWindow : Window
         string Title,
         string Status,
         string Detail,
-        int Revision);
+        int Revision,
+        string SearchText);
 }
