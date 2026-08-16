@@ -19,6 +19,11 @@ never receives or stores the user's password or two-factor code. When **Stay sig
 is selected, the refresh token is stored in Windows Credential Manager and exchanged
 for a short-lived access token at application startup.
 
+After authentication, the native application shell shows the verified Home Assistant
+and StructuralOffice status on its dashboard. Navigation foundations are available for
+contacts, topics, routines, tasks, invoices, documents, and settings. These modules are
+intentionally prepared as placeholders for the next domain-development milestones.
+
 ## Build an installable package
 
 ```powershell

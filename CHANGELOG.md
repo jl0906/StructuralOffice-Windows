@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.3.0-alpha] - 2026-08-16
+
 ### Added
 
 - Native WPF desktop foundation.
@@ -15,3 +17,5 @@
 - Installer selection for the destination directory and desktop shortcut.
 - Existing-installation detection that prevents an interactive reinstall while allowing
   verified quiet updates to retain the original installation location.
+- Authenticated desktop shell with dashboard, live integration status, and navigation
+  foundations for contacts, topics, routines, tasks, invoices, documents, and settings.
