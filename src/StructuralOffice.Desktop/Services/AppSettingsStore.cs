@@ -1,0 +1,75 @@
+using System.IO;
+using System.Text.Json;
+
+namespace StructuralOffice.Desktop.Services;
+
+public sealed class AppSettingsStore
+{
+    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
+    private readonly string _settingsPath;
+
+    public AppSettingsStore()
+    {
+        var directory = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "StructuralOffice");
+        _settingsPath = Path.Combine(directory, "settings.json");
+    }
+
+    public async Task<string?> LoadServerUrlAsync()
+    {
+        return (await LoadAsync()).ServerUrl;
+    }
+
+    public async Task<DateTimeOffset?> LoadLastUpdateCheckAsync()
+    {
+        return (await LoadAsync()).LastUpdateCheck;
+    }
+
+    private async Task<AppSettings> LoadAsync()
+    {
+        try
+        {
+            if (!File.Exists(_settingsPath))
+            {
+                return new AppSettings();
+            }
+
+            await using var stream = File.OpenRead(_settingsPath);
+            var settings = await JsonSerializer.DeserializeAsync<AppSettings>(stream);
+            return settings ?? new AppSettings();
+        }
+        catch (IOException)
+        {
+            return new AppSettings();
+        }
+        catch (JsonException)
+        {
+            return new AppSettings();
+        }
+    }
+
+    public async Task SaveServerUrlAsync(string serverUrl)
+    {
+        var settings = await LoadAsync();
+        await SaveAsync(settings with { ServerUrl = serverUrl });
+    }
+
+    public async Task SaveLastUpdateCheckAsync(DateTimeOffset checkedAt)
+    {
+        var settings = await LoadAsync();
+        await SaveAsync(settings with { LastUpdateCheck = checkedAt });
+    }
+
+    private async Task SaveAsync(AppSettings settings)
+    {
+        var directory = Path.GetDirectoryName(_settingsPath)!;
+        Directory.CreateDirectory(directory);
+        await using var stream = File.Create(_settingsPath);
+        await JsonSerializer.SerializeAsync(stream, settings, JsonOptions);
+    }
+
+    private sealed record AppSettings(
+        string? ServerUrl = null,
+        DateTimeOffset? LastUpdateCheck = null);
+}

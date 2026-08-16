@@ -1,0 +1,7 @@
+.dotnet-sdk/
+.dotnet-home/
+.nuget-packages/
+artifacts/
+**/bin/
+**/obj/
+.vs/
