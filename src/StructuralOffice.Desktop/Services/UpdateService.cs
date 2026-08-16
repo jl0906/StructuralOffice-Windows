@@ -76,9 +76,17 @@ public sealed class UpdateService : IDisposable
             return false;
         }
 
+        await InstallAsync(release, cancellationToken);
+        return true;
+    }
+
+    public async Task InstallAsync(
+        AvailableUpdate release,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(release);
         var installer = await DownloadAndVerifyAsync(release, cancellationToken);
         _installerLauncher(installer);
-        return true;
     }
 
     public async Task<AvailableUpdate?> FindUpdateAsync(

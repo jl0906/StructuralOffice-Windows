@@ -20,23 +20,27 @@ is selected, the refresh token is stored in Windows Credential Manager and excha
 for a short-lived access token at application startup.
 
 After authentication, the native application shell shows the verified Home Assistant
-and StructuralOffice status on its dashboard. Version `0.5.0-alpha` requires the
-StructuralOffice Home Assistant integration `0.6.0-alpha` or newer and provides:
+and StructuralOffice status on its dashboard. Version `0.6.0-alpha` requires the
+StructuralOffice Home Assistant integration `0.7.0-alpha` or newer and provides:
 
 - revision-safe create, edit, presence, and archive workflows for contacts, topics,
   routines, and invoices;
 - materialized task status updates and accounting-task membership views;
+- native routine scheduling with topic assignments, recurrence rules, reminders,
+  catch-up behavior, and business-day handling;
+- native task filters and editors for manual tasks, due dates, status, priority,
+  completion notes, and checklist progress;
+- reconnecting live updates for the currently open module;
 - CSV and Excel invoice preview/import plus CSV, Excel, and template export;
 - payment-reminder and dunning-document generation for one or several invoices;
 - accounting escalation-rule editing;
 - administrator access to user roles, backups, restore/download/delete operations,
   test notifications, audit entries, and persisted change events.
 
-Contacts and topics use native, validated forms in `0.5.0-alpha`. Topic checklists,
-priority, estimated duration, instructions, and enabled state can be edited without
-working with JSON. Data modules support text search and an optional archived-record
-view. The remaining modules retain the technical record editor until their dedicated
-forms arrive in subsequent releases.
+Contacts, topics, routines, and tasks use native, validated forms in `0.6.0-alpha`.
+Data modules support text search and an optional archived-record view. The remaining
+modules retain the technical record editor until their dedicated forms arrive in
+subsequent releases.
 
 ## Build an installable package
 
@@ -55,7 +59,8 @@ mode and keep the registered location and desktop-shortcut choice.
 ## Automatic updates
 
 The application checks the dedicated GitHub repository
-`jl0906/StructuralOffice-Windows` at startup, at most once every 12 hours:
+`jl0906/StructuralOffice-Windows` at startup, at most once every 12 hours. A manual
+check that bypasses this interval is available under **Einstellungen**:
 
 ```text
 https://api.github.com/repos/jl0906/StructuralOffice-Windows/releases

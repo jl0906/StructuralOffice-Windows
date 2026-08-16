@@ -29,6 +29,10 @@ public partial class MainWindow : Window
     private string? _editCollection;
     private List<DisplayRecord> _allDisplayRows = [];
     private readonly ObservableCollection<TopicStepModel> _topicSteps = [];
+    private readonly ObservableCollection<RoutineTopicOption> _routineTopics = [];
+    private readonly ObservableCollection<TaskChecklistItemModel> _taskChecklist = [];
+    private CancellationTokenSource? _liveUpdatesCancellation;
+    private bool _newManualTask;
 
     private static readonly JsonSerializerOptions PrettyJson = new() { WriteIndented = true };
 
@@ -77,8 +81,14 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         TopicStepsGrid.ItemsSource = _topicSteps;
+        RoutineTopicsList.ItemsSource = _routineTopics;
+        TaskChecklistGrid.ItemsSource = _taskChecklist;
         Loaded += OnLoaded;
-        Closed += (_, _) => _backend?.Dispose();
+        Closed += (_, _) =>
+        {
+            _liveUpdatesCancellation?.Cancel();
+            _backend?.Dispose();
+        };
     }
 
     private async void OnLoaded(object sender, RoutedEventArgs eventArgs)
@@ -170,6 +180,8 @@ public partial class MainWindow : Window
     private async void LogoutButton_OnClick(object sender, RoutedEventArgs eventArgs)
     {
         await EndCurrentEditSessionCoreAsync();
+        _liveUpdatesCancellation?.Cancel();
+        _liveUpdatesCancellation = null;
         _credentialStore.DeleteRefreshToken();
         await _settingsStore.ClearRememberedLoginAsync();
         _backend?.Dispose();
@@ -266,6 +278,7 @@ public partial class MainWindow : Window
 
         if (authenticated)
         {
+            StartLiveUpdates();
             ShowPage("overview");
         }
     }
@@ -337,13 +350,15 @@ public partial class MainWindow : Window
         var all = new UIElement[]
         {
             NewRecordButton, SaveRecordButton, ArchiveRecordButton, StartEditingButton,
-            ShowEditorsButton, EndEditingButton, TaskStatusBox,
+            ShowEditorsButton, EndEditingButton, TaskStatusFilterBox, TaskSourceFilterBox,
+            NewTaskButton, TaskStatusBox,
             SetTaskStatusButton, ImportInvoicesButton, ImportExcelButton,
             ExportInvoicesButton, ExportCsvButton,
             DownloadTemplateButton, DocumentTypeBox, GenerateDocumentButton,
             AccountingMembersButton, AccountingRulesButton, AdministrationSectionBox,
             RoleBox, SetRoleButton, CreateBackupButton, DownloadBackupButton,
-            RestoreBackupButton, DeleteBackupButton, TestNotificationButton
+            RestoreBackupButton, DeleteBackupButton, TestNotificationButton,
+            ManualUpdateButton
         };
         foreach (var element in all)
         {
@@ -353,22 +368,27 @@ public partial class MainWindow : Window
         var isLiveEditor = pageKey is "contacts" or "topics" or "routines" or "invoices";
         SetVisibility(isLiveEditor, NewRecordButton, SaveRecordButton, ArchiveRecordButton,
             StartEditingButton, ShowEditorsButton, EndEditingButton);
-        SetVisibility(pageKey == "tasks", TaskStatusBox, SetTaskStatusButton);
+        SetVisibility(pageKey == "tasks", SaveRecordButton, TaskStatusFilterBox,
+            TaskSourceFilterBox, NewTaskButton, TaskStatusBox, SetTaskStatusButton);
         SetVisibility(pageKey == "invoices", ImportInvoicesButton, ImportExcelButton, ExportInvoicesButton,
             ExportCsvButton, DownloadTemplateButton);
         SetVisibility(pageKey == "documents", DocumentTypeBox, GenerateDocumentButton);
         SetVisibility(pageKey == "accounting", AccountingMembersButton, AccountingRulesButton);
         SetVisibility(pageKey == "administration", AdministrationSectionBox,
             TestNotificationButton);
-        SetVisibility(pageKey == "settings", TestNotificationButton);
+        SetVisibility(pageKey == "settings", TestNotificationButton, ManualUpdateButton);
         ContextActionsPanel.Visibility = all.Any(item => item.Visibility == Visibility.Visible)
             ? Visibility.Visible
             : Visibility.Collapsed;
         var isContactEditor = pageKey == "contacts";
         var isTopicEditor = pageKey == "topics";
+        var isRoutineEditor = pageKey == "routines";
+        var isTaskEditor = pageKey == "tasks";
         ContactEditorPanel.Visibility = isContactEditor ? Visibility.Visible : Visibility.Collapsed;
         TopicEditorPanel.Visibility = isTopicEditor ? Visibility.Visible : Visibility.Collapsed;
-        RecordEditorText.Visibility = isContactEditor || isTopicEditor
+        RoutineEditorPanel.Visibility = isRoutineEditor ? Visibility.Visible : Visibility.Collapsed;
+        TaskEditorPanel.Visibility = isTaskEditor ? Visibility.Visible : Visibility.Collapsed;
+        RecordEditorText.Visibility = isContactEditor || isTopicEditor || isRoutineEditor || isTaskEditor
             ? Visibility.Collapsed
             : Visibility.Visible;
         RecordEditorText.IsReadOnly = !isLiveEditor;
@@ -377,6 +397,10 @@ public partial class MainWindow : Window
             ? "Pflichtfelder sind mit * gekennzeichnet. Änderungen werden revisionssicher gespeichert."
             : isTopicEditor
                 ? "Checklistenpunkte können direkt bearbeitet und per Auswahl entfernt werden."
+                : isRoutineEditor
+                    ? "Wiederholung, Themen und Erinnerungen werden als validierte Routine gespeichert."
+                    : isTaskEditor
+                        ? "Aufgabenstatus, Fälligkeit und Checkliste werden live mit dem Backend synchronisiert."
                 : isLiveEditor
                     ? "JSON-Felder können bearbeitet werden. Revisionen schützen vor parallelen Änderungen."
                     : "Diese Ansicht zeigt die vom StructuralOffice-Backend gespeicherten Daten vollständig an.";
@@ -410,15 +434,23 @@ public partial class MainWindow : Window
         {
             case "contacts":
             case "topics":
+            case "invoices":
+                _currentDataMode = "live";
+                LoadRows((await _backend.GetLiveRecordsAsync(
+                    _currentPage, IncludeArchivedBox.IsChecked == true)).Items);
+                break;
             case "routines":
-                case "invoices":
-                    _currentDataMode = "live";
-                    LoadRows((await _backend.GetLiveRecordsAsync(
-                        _currentPage, IncludeArchivedBox.IsChecked == true)).Items);
+                _currentDataMode = "live";
+                await LoadRoutineTopicsAsync();
+                LoadRows((await _backend.GetLiveRecordsAsync(
+                    "routines", IncludeArchivedBox.IsChecked == true)).Items);
                 break;
             case "tasks":
                 _currentDataMode = "tasks";
-                LoadRows((await _backend.GetTasksAsync()).Items);
+                _newManualTask = false;
+                LoadRows((await _backend.GetTasksAsync(
+                    NullIfEmpty(SelectedTag(TaskStatusFilterBox)),
+                    NullIfEmpty(SelectedTag(TaskSourceFilterBox)))).Items);
                 break;
             case "documents":
                 _currentDataMode = "documents";
@@ -442,7 +474,7 @@ public partial class MainWindow : Window
                 var check = await _backend.CheckAsync();
                 var data = new JsonObject
                 {
-                    ["application_version"] = "0.5.0-alpha",
+                    ["application_version"] = "0.6.0-alpha",
                     ["backend"] = _backend.DisplayName,
                     ["integration_version"] = check.IntegrationVersion,
                     ["server"] = _session?.ServerAddress.ToString(),
@@ -509,11 +541,33 @@ public partial class MainWindow : Window
         }
     }
 
+    private async Task LoadRoutineTopicsAsync()
+    {
+        if (_backend is null) return;
+        var selected = _routineTopics.Where(item => item.IsSelected)
+            .Select(item => item.Id).ToHashSet(StringComparer.Ordinal);
+        var topics = await _backend.GetLiveRecordsAsync("topics");
+        _routineTopics.Clear();
+        foreach (var topic in topics.Items.OrderBy(item => FirstText(item.Data, "name")))
+        {
+            _routineTopics.Add(new RoutineTopicOption
+            {
+                Id = topic.Id,
+                Name = FirstText(topic.Data, "name") is { Length: > 0 } name ? name : topic.Id,
+                IsSelected = selected.Contains(topic.Id)
+            });
+        }
+    }
+
     private static DisplayRecord CreateDisplayRecord(BackendRecord record)
     {
         var data = record.Data;
         var title = FirstText(data, "name", "invoice_number", "topic_name", "routine_name",
             "filename", "user_name", "task_type", "action", "id");
+        if (string.IsNullOrWhiteSpace(title) && data["snapshot"] is JsonObject snapshot)
+        {
+            title = FirstText(snapshot, "topic_name", "task_type", "routine_name");
+        }
         if (string.IsNullOrWhiteSpace(title))
         {
             title = record.Id;
@@ -523,6 +577,10 @@ public partial class MainWindow : Window
             : FirstText(data, "status", "role", "due_state", "enabled", "operation");
         var detail = FirstText(data, "email", "category", "due_date", "due_at",
             "source_name", "collection", "updated_at");
+        if (string.IsNullOrWhiteSpace(detail) && data["snapshot"] is JsonObject detailSnapshot)
+        {
+            detail = FirstText(detailSnapshot, "category", "description", "source_due_date");
+        }
         var searchText = string.Join(' ', title, status, detail, data.ToJsonString());
         return new DisplayRecord(record, title, status, detail, record.Revision, searchText);
     }
@@ -543,7 +601,7 @@ public partial class MainWindow : Window
         return string.Empty;
     }
 
-    private void ModuleDataGrid_OnSelectionChanged(object sender, SelectionChangedEventArgs eventArgs)
+    private async void ModuleDataGrid_OnSelectionChanged(object sender, SelectionChangedEventArgs eventArgs)
     {
         _selectedRecord = ModuleDataGrid.SelectedItem as DisplayRecord;
         if (_selectedRecord is null)
@@ -562,9 +620,27 @@ public partial class MainWindow : Window
         RecordEditorText.IsReadOnly = archived ||
                                       _currentDataMode is not ("live" or "accounting-rules");
         LoadRecordIntoEditor(_selectedRecord.Record);
-        if (_currentDataMode == "administration-roles")
+        if (_currentPage == "tasks" && _backend is not null)
         {
-            SelectComboValue(RoleBox, FirstText(_selectedRecord.Record.Data, "role") ?? "viewer");
+            var selectedId = _selectedRecord.Record.Id;
+            try
+            {
+                var task = await _backend.GetTaskAsync(selectedId);
+                if (_selectedRecord?.Record.Id == selectedId)
+                {
+                    _selectedRecord = CreateDisplayRecord(task);
+                    EditorMetaText.Text = $"ID: {task.Id}  ·  Revision {task.Revision}";
+                    LoadRecordIntoEditor(task);
+                }
+            }
+            catch (BackendApiException exception)
+            {
+                ModuleBusyText.Text = exception.Message;
+            }
+        }
+        if (_currentDataMode == "administration-roles" && _selectedRecord is not null)
+        {
+            SelectComboValue(RoleBox, FirstText(_selectedRecord.Record.Data, "role"));
         }
     }
 
@@ -598,6 +674,46 @@ public partial class MainWindow : Window
             }
             return;
         }
+        if (_currentPage == "routines")
+        {
+            var routine = RoutineRecordModel.FromJson(record.Data);
+            RoutineNameBox.Text = routine.Name;
+            RoutineDescriptionBox.Text = routine.Description;
+            RoutineEnabledBox.IsChecked = routine.Enabled;
+            foreach (var option in _routineTopics)
+                option.IsSelected = routine.TopicIds.Contains(option.Id, StringComparer.Ordinal);
+            RoutineTopicsList.Items.Refresh();
+            SelectComboTag(RoutineFrequencyBox, routine.Frequency);
+            RoutineIntervalBox.Text = routine.Interval.ToString();
+            RoutineStartDateBox.Text = routine.StartDate;
+            RoutineEndDateBox.Text = routine.EndDate;
+            RoutineDueTimeBox.Text = routine.DueTime;
+            RoutineTimezoneBox.Text = routine.Timezone;
+            SelectComboTag(RoutineCatchUpBox, routine.CatchUpPolicy);
+            RoutineRemindersBox.Text = string.Join(',', routine.ReminderOffsets);
+            SetWeekdayChecks(routine.Weekdays);
+            RoutineMonthDaysBox.Text = string.Join(',', routine.MonthDays);
+            RoutineMonthsBox.Text = string.Join(',', routine.Months);
+            RoutineDatesBox.Text = string.Join(',', routine.Dates);
+            SelectComboTag(RoutineBusinessDayBox, routine.BusinessDayRule);
+            SelectComboTag(RoutineInvalidDayBox, routine.InvalidDayRule);
+            return;
+        }
+        if (_currentPage == "tasks")
+        {
+            var task = TaskRecordModel.FromJson(record.Data);
+            TaskTitleBox.Text = task.Title;
+            TaskDescriptionBox.Text = task.Description;
+            TaskCategoryBox.Text = task.Category;
+            TaskDueAtBox.Text = task.DueAt;
+            TaskCompletionNoteBox.Text = task.CompletionNote;
+            SelectComboTag(TaskPriorityBox, task.Priority);
+            SelectComboTag(TaskEditorStatusBox, task.Status);
+            _taskChecklist.Clear();
+            foreach (var item in task.Checklist) _taskChecklist.Add(item);
+            SetTaskCreationMode(false);
+            return;
+        }
         RecordEditorText.Text = record.Data.ToJsonString(PrettyJson);
     }
 
@@ -618,6 +734,34 @@ public partial class MainWindow : Window
         TopicEnabledBox.IsChecked = true;
         TopicPriorityBox.SelectedIndex = 1;
         _topicSteps.Clear();
+        RoutineNameBox.Clear();
+        RoutineDescriptionBox.Clear();
+        RoutineEnabledBox.IsChecked = true;
+        foreach (var topic in _routineTopics) topic.IsSelected = false;
+        RoutineTopicsList.Items.Refresh();
+        RoutineFrequencyBox.SelectedIndex = 3;
+        RoutineIntervalBox.Text = "1";
+        RoutineStartDateBox.Text = DateTime.Today.ToString("yyyy-MM-dd");
+        RoutineEndDateBox.Clear();
+        RoutineDueTimeBox.Text = "09:00";
+        RoutineTimezoneBox.Text = "Europe/Berlin";
+        RoutineCatchUpBox.SelectedIndex = 0;
+        RoutineRemindersBox.Text = "-1,0";
+        SetWeekdayChecks([]);
+        RoutineMonthDaysBox.Text = DateTime.Today.Day.ToString();
+        RoutineMonthsBox.Clear();
+        RoutineDatesBox.Clear();
+        RoutineBusinessDayBox.SelectedIndex = 0;
+        RoutineInvalidDayBox.SelectedIndex = 0;
+        TaskTitleBox.Clear();
+        TaskDescriptionBox.Clear();
+        TaskCategoryBox.Clear();
+        TaskDueAtBox.Text = DateTime.Now.AddDays(1).ToString("yyyy-MM-ddTHH:mm");
+        TaskCompletionNoteBox.Clear();
+        TaskPriorityBox.SelectedIndex = 1;
+        TaskEditorStatusBox.SelectedIndex = 0;
+        _taskChecklist.Clear();
+        SetTaskCreationMode(false);
     }
 
     private void ModuleSearchBox_OnTextChanged(object sender, TextChangedEventArgs eventArgs)
@@ -639,6 +783,28 @@ public partial class MainWindow : Window
     private async void RefreshModuleButton_OnClick(object sender, RoutedEventArgs eventArgs) =>
         await LoadCurrentPageAsync();
 
+    private async void TaskFilterBox_OnChanged(object sender, SelectionChangedEventArgs eventArgs)
+    {
+        if (IsLoaded && _authenticated && _currentPage == "tasks" && !_moduleBusy)
+        {
+            await LoadCurrentPageAsync();
+        }
+    }
+
+    private void NewTaskButton_OnClick(object sender, RoutedEventArgs eventArgs)
+    {
+        _selectedRecord = null;
+        ModuleDataGrid.SelectedItem = null;
+        ClearEditor();
+        _newManualTask = true;
+        SetTaskCreationMode(true);
+        EditorTitleText.Text = "Neue manuelle Aufgabe";
+        EditorMetaText.Text = "Wird beim Speichern angelegt";
+        SaveRecordButton.IsEnabled = true;
+        SetTaskStatusButton.IsEnabled = false;
+        TaskTitleBox.Focus();
+    }
+
     private void NewRecordButton_OnClick(object sender, RoutedEventArgs eventArgs)
     {
         _selectedRecord = null;
@@ -652,11 +818,15 @@ public partial class MainWindow : Window
         TopicEditorPanel.IsEnabled = true;
         RecordEditorText.IsReadOnly = false;
         ClearEditor();
-        if (_currentPage is "contacts" or "topics")
+        if (_currentPage is "contacts" or "topics" or "routines")
         {
             if (_currentPage == "topics")
             {
                 _topicSteps.Add(new TopicStepModel { Id = "step-0", Title = "" });
+            }
+            if (_currentPage == "routines")
+            {
+                RoutineNameBox.Focus();
             }
         }
         else
@@ -712,6 +882,33 @@ public partial class MainWindow : Window
         }
         await RunModuleActionAsync(async () =>
         {
+            if (_currentDataMode == "tasks")
+            {
+                var task = ReadTaskEditorModel();
+                if (_newManualTask || _selectedRecord is null)
+                {
+                    await _backend.CreateTaskAsync(task.ToCreateJson());
+                }
+                else
+                {
+                    var taskId = _selectedRecord.Record.Id;
+                    await _backend.UpdateTaskAsync(
+                        taskId, _selectedRecord.Record.Revision, task.ToUpdateJson());
+                    foreach (var item in task.Checklist.Where(item =>
+                                 !string.IsNullOrWhiteSpace(item.Id)))
+                    {
+                        await _backend.UpdateTaskChecklistItemAsync(
+                            taskId, item.Id, item.Revision, new JsonObject
+                            {
+                                ["completed"] = item.Completed,
+                                ["note"] = item.Note.Trim()
+                            });
+                    }
+                }
+                _newManualTask = false;
+                await LoadCurrentPageCoreAsync();
+                return;
+            }
             var data = ReadEditorData();
             if (_currentDataMode == "accounting-rules" && _selectedRecord is not null)
             {
@@ -779,6 +976,34 @@ public partial class MainWindow : Window
             }
             return topic.ToJson();
         }
+        if (_currentPage == "routines")
+        {
+            if (!int.TryParse(RoutineIntervalBox.Text.Trim(), out var interval))
+                throw new InvalidDataException("Bitte das Intervall als ganze Zahl eingeben.");
+            return new RoutineRecordModel
+            {
+                Id = _selectedRecord?.Record.Id ?? string.Empty,
+                Name = RoutineNameBox.Text,
+                Description = RoutineDescriptionBox.Text,
+                Enabled = RoutineEnabledBox.IsChecked == true,
+                TopicIds = _routineTopics.Where(item => item.IsSelected)
+                    .Select(item => item.Id).ToList(),
+                Frequency = SelectedTag(RoutineFrequencyBox) ?? "monthly",
+                Interval = interval,
+                StartDate = RoutineStartDateBox.Text,
+                EndDate = RoutineEndDateBox.Text,
+                DueTime = RoutineDueTimeBox.Text,
+                Timezone = RoutineTimezoneBox.Text,
+                CatchUpPolicy = SelectedTag(RoutineCatchUpBox) ?? "configured_window",
+                ReminderOffsets = ParseIntegers(RoutineRemindersBox.Text, "Erinnerungen"),
+                Weekdays = ReadWeekdayChecks(),
+                MonthDays = ParseIntegers(RoutineMonthDaysBox.Text, "Monatstage"),
+                Months = ParseIntegers(RoutineMonthsBox.Text, "Monate"),
+                Dates = ParseStrings(RoutineDatesBox.Text),
+                BusinessDayRule = SelectedTag(RoutineBusinessDayBox) ?? "none",
+                InvalidDayRule = SelectedTag(RoutineInvalidDayBox) ?? "skip"
+            }.ToJson();
+        }
         return JsonNode.Parse(RecordEditorText.Text) as JsonObject
                ?? throw new InvalidDataException("Der Inhalt muss ein JSON-Objekt sein.");
     }
@@ -801,6 +1026,56 @@ public partial class MainWindow : Window
         {
             _topicSteps.Remove(step);
         }
+    }
+
+    private void AddTaskChecklistButton_OnClick(object sender, RoutedEventArgs eventArgs)
+    {
+        if (!_newManualTask) return;
+        var item = new TaskChecklistItemModel { Title = "Neuer Checklistenpunkt" };
+        _taskChecklist.Add(item);
+        TaskChecklistGrid.SelectedItem = item;
+        TaskChecklistGrid.ScrollIntoView(item);
+    }
+
+    private void RemoveTaskChecklistButton_OnClick(object sender, RoutedEventArgs eventArgs)
+    {
+        if (_newManualTask && TaskChecklistGrid.SelectedItem is TaskChecklistItemModel item)
+        {
+            _taskChecklist.Remove(item);
+        }
+    }
+
+    private TaskRecordModel ReadTaskEditorModel()
+    {
+        TaskChecklistGrid.CommitEdit(DataGridEditingUnit.Cell, true);
+        TaskChecklistGrid.CommitEdit(DataGridEditingUnit.Row, true);
+        var task = new TaskRecordModel
+        {
+            Id = _selectedRecord?.Record.Id ?? string.Empty,
+            Revision = _selectedRecord?.Record.Revision ?? 0,
+            Title = TaskTitleBox.Text,
+            Description = TaskDescriptionBox.Text,
+            Category = TaskCategoryBox.Text,
+            DueAt = TaskDueAtBox.Text,
+            Priority = SelectedTag(TaskPriorityBox) ?? "normal",
+            Status = SelectedTag(TaskEditorStatusBox) ?? "open",
+            CompletionNote = TaskCompletionNoteBox.Text
+        };
+        foreach (var item in _taskChecklist) task.Checklist.Add(item);
+        return task;
+    }
+
+    private void SetTaskCreationMode(bool creating)
+    {
+        _newManualTask = creating;
+        TaskTitleBox.IsReadOnly = !creating;
+        TaskDescriptionBox.IsReadOnly = !creating;
+        TaskCategoryBox.IsReadOnly = !creating;
+        AddTaskChecklistButton.Visibility = creating ? Visibility.Visible : Visibility.Collapsed;
+        RemoveTaskChecklistButton.Visibility = creating ? Visibility.Visible : Visibility.Collapsed;
+        TaskChecklistTitleColumn.IsReadOnly = !creating;
+        TaskChecklistRequiredColumn.IsReadOnly = !creating;
+        SetTaskStatusButton.IsEnabled = !creating && _selectedRecord is not null;
     }
 
     private async void ArchiveRecordButton_OnClick(object sender, RoutedEventArgs eventArgs)
@@ -896,10 +1171,12 @@ public partial class MainWindow : Window
         {
             return;
         }
-        var status = SelectedContent(TaskStatusBox) ?? "open";
+        var status = SelectedTag(TaskStatusBox) ?? "open";
         await RunModuleActionAsync(async () =>
         {
-            await _backend.SetOccurrenceStatusAsync(_selectedRecord.Record.Id, status);
+            await _backend.UpdateTaskAsync(
+                _selectedRecord.Record.Id, _selectedRecord.Record.Revision,
+                new JsonObject { ["status"] = status });
             await LoadCurrentPageCoreAsync();
         }, "Aufgabenstatus aktualisiert.");
     }
@@ -1107,6 +1384,109 @@ public partial class MainWindow : Window
             () => _backend.SendTestNotificationAsync(), "Testbenachrichtigung gesendet.");
     }
 
+    private async void ManualUpdateButton_OnClick(object sender, RoutedEventArgs eventArgs)
+    {
+        ManualUpdateButton.IsEnabled = false;
+        var previousText = ManualUpdateButton.Content;
+        ManualUpdateButton.Content = "Suche läuft …";
+        ModuleBusyText.Text = "GitHub-Releases werden geprüft …";
+        try
+        {
+            await _settingsStore.SaveLastUpdateCheckAsync(DateTimeOffset.UtcNow);
+            using var updater = new UpdateService();
+            var release = await updater.FindUpdateAsync();
+            if (release is null)
+            {
+                MessageBox.Show(
+                    "StructuralOffice ist bereits auf dem neuesten verfügbaren Stand.",
+                    "Updateprüfung", MessageBoxButton.OK, MessageBoxImage.Information);
+                ModuleBusyText.Text = "Keine neue Version gefunden";
+                return;
+            }
+
+            var install = MessageBox.Show(
+                $"Version {release.Version} ist verfügbar. Jetzt herunterladen und installieren?",
+                "StructuralOffice-Update", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            if (install != MessageBoxResult.Yes)
+            {
+                ModuleBusyText.Text = $"Update {release.Version} verfügbar";
+                return;
+            }
+
+            ManualUpdateButton.Content = "Update wird geladen …";
+            await updater.InstallAsync(release);
+            await UpdateLog.WriteAsync(
+                $"Manual update {release.Version} verified; installer started.");
+            Application.Current.Shutdown();
+        }
+        catch (Exception exception)
+        {
+            await UpdateLog.WriteAsync($"Manual update check failed: {exception.Message}");
+            MessageBox.Show(
+                "Die Updateprüfung ist fehlgeschlagen.\n\n" + exception.Message,
+                "StructuralOffice-Update", MessageBoxButton.OK, MessageBoxImage.Warning);
+            ModuleBusyText.Text = "Updateprüfung fehlgeschlagen";
+        }
+        finally
+        {
+            ManualUpdateButton.Content = previousText;
+            ManualUpdateButton.IsEnabled = true;
+        }
+    }
+
+    private void StartLiveUpdates()
+    {
+        _liveUpdatesCancellation?.Cancel();
+        _liveUpdatesCancellation = new CancellationTokenSource();
+        _ = RunLiveUpdatesAsync(_liveUpdatesCancellation.Token);
+    }
+
+    private async Task RunLiveUpdatesAsync(CancellationToken cancellationToken)
+    {
+        while (!cancellationToken.IsCancellationRequested && _authenticated)
+        {
+            var backend = _backend;
+            if (backend is null) return;
+            try
+            {
+                await backend.SubscribeLiveAsync(HandleLiveUpdateAsync, cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (Exception exception)
+            {
+                await UpdateLog.WriteAsync($"Live update connection interrupted: {exception.Message}");
+                await Dispatcher.InvokeAsync(() =>
+                    DashboardStatusText.Text = "Live-Verbindung wird neu aufgebaut …");
+            }
+
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+        }
+    }
+
+    private Task HandleLiveUpdateAsync(JsonObject liveEvent) =>
+        Dispatcher.InvokeAsync(() =>
+        {
+            DashboardStatusText.Text = "Live verbunden";
+            var collection = liveEvent["collection"]?.GetValue<string>();
+            var relevant = string.Equals(collection, _currentPage, StringComparison.OrdinalIgnoreCase) ||
+                           (_currentPage == "documents" && collection == "invoices") ||
+                           (_currentPage == "accounting" && collection is "tasks" or "invoices" or "accounting_rules");
+            if (relevant && !_moduleBusy && string.IsNullOrWhiteSpace(_editSessionId))
+            {
+                _ = LoadCurrentPageAsync();
+            }
+        }).Task;
+
     private async Task DownloadActionAsync(Func<Task<BackendDownload>> action)
     {
         if (_backend is null) return;
@@ -1171,6 +1551,49 @@ public partial class MainWindow : Window
 
     private static string? SelectedTag(ComboBox box) =>
         (box.SelectedItem as ComboBoxItem)?.Tag?.ToString();
+
+    private static string? NullIfEmpty(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value;
+
+    private static List<string> ParseStrings(string value) =>
+        value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToList();
+
+    private static List<int> ParseIntegers(string value, string fieldName)
+    {
+        var result = new List<int>();
+        foreach (var item in ParseStrings(value))
+        {
+            if (!int.TryParse(item, out var number))
+                throw new InvalidDataException($"{fieldName}: '{item}' ist keine ganze Zahl.");
+            result.Add(number);
+        }
+        return result;
+    }
+
+    private void SetWeekdayChecks(IEnumerable<int> weekdays)
+    {
+        var selected = weekdays.ToHashSet();
+        RoutineMondayBox.IsChecked = selected.Contains(0);
+        RoutineTuesdayBox.IsChecked = selected.Contains(1);
+        RoutineWednesdayBox.IsChecked = selected.Contains(2);
+        RoutineThursdayBox.IsChecked = selected.Contains(3);
+        RoutineFridayBox.IsChecked = selected.Contains(4);
+        RoutineSaturdayBox.IsChecked = selected.Contains(5);
+        RoutineSundayBox.IsChecked = selected.Contains(6);
+    }
+
+    private List<int> ReadWeekdayChecks()
+    {
+        var boxes = new[]
+        {
+            RoutineMondayBox, RoutineTuesdayBox, RoutineWednesdayBox, RoutineThursdayBox,
+            RoutineFridayBox, RoutineSaturdayBox, RoutineSundayBox
+        };
+        return boxes.Select((box, index) => (box, index))
+            .Where(item => item.box.IsChecked == true)
+            .Select(item => item.index).ToList();
+    }
 
     private static string? SelectedContent(ComboBox box) =>
         (box.SelectedItem as ComboBoxItem)?.Content?.ToString();

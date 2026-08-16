@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+## [0.6.0-alpha] - 2026-08-17
+
+### Added
+
+- Native routine editor with recurrence, topics, reminders, and business-day rules.
+- Native task editor with filters, manual tasks, status, priority, notes, and checklists.
+- Reconnecting live-update subscription for record and task changes.
+- Manual update check in Settings that bypasses the automatic-check interval.
+
 ## [0.5.0-alpha] - 2026-08-17
 
 ### Added

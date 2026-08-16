@@ -19,7 +19,15 @@ public interface IStructuralOfficeDataBackend : IStructuralOfficeBackend
         CancellationToken cancellationToken = default);
     Task EndEditingAsync(string collection, string id, string sessionId,
         CancellationToken cancellationToken = default);
-    Task<BackendPage> GetTasksAsync(CancellationToken cancellationToken = default);
+    Task<BackendPage> GetTasksAsync(string? status = null, string? sourceType = null,
+        CancellationToken cancellationToken = default);
+    Task<BackendRecord> GetTaskAsync(string id, CancellationToken cancellationToken = default);
+    Task<BackendRecord> CreateTaskAsync(JsonObject data,
+        CancellationToken cancellationToken = default);
+    Task<BackendRecord> UpdateTaskAsync(string id, int revision, JsonObject data,
+        CancellationToken cancellationToken = default);
+    Task<BackendRecord> UpdateTaskChecklistItemAsync(string taskId, string itemId,
+        int revision, JsonObject data, CancellationToken cancellationToken = default);
     Task<BackendPage> GetAccountingTasksAsync(CancellationToken cancellationToken = default);
     Task<IReadOnlyList<BackendRecord>> GetAccountingTaskInvoicesAsync(string batchId,
         CancellationToken cancellationToken = default);
@@ -51,4 +59,6 @@ public interface IStructuralOfficeDataBackend : IStructuralOfficeBackend
         CancellationToken cancellationToken = default);
     Task<BackendDownload> ExportInvoicesCsvAsync(CancellationToken cancellationToken = default);
     Task SendTestNotificationAsync(CancellationToken cancellationToken = default);
+    Task SubscribeLiveAsync(Func<JsonObject, Task> onEvent,
+        CancellationToken cancellationToken = default);
 }

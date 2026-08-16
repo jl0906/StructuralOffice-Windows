@@ -210,8 +210,53 @@ public sealed class HomeAssistantBackend : IStructuralOfficeDataBackend, IDispos
             null,
             cancellationToken);
 
-    public async Task<BackendPage> GetTasksAsync(CancellationToken cancellationToken = default) =>
-        ParsePage(await GetJsonAsync("tasks?limit=500", cancellationToken), "items");
+    public async Task<BackendPage> GetTasksAsync(
+        string? status = null,
+        string? sourceType = null,
+        CancellationToken cancellationToken = default)
+    {
+        var query = new List<string> { "limit=500" };
+        if (!string.IsNullOrWhiteSpace(status)) query.Add($"status={Escape(status)}");
+        if (!string.IsNullOrWhiteSpace(sourceType)) query.Add($"source_type={Escape(sourceType)}");
+        return ParsePage(await GetJsonAsync($"tasks?{string.Join('&', query)}", cancellationToken), "items");
+    }
+
+    public async Task<BackendRecord> GetTaskAsync(
+        string id,
+        CancellationToken cancellationToken = default) =>
+        ParseRecord(await GetJsonAsync($"tasks/{Escape(id)}", cancellationToken));
+
+    public async Task<BackendRecord> CreateTaskAsync(
+        JsonObject data,
+        CancellationToken cancellationToken = default) =>
+        ParseRecord(await SendJsonAsync(HttpMethod.Post, "tasks", data, cancellationToken));
+
+    public async Task<BackendRecord> UpdateTaskAsync(
+        string id,
+        int revision,
+        JsonObject data,
+        CancellationToken cancellationToken = default) =>
+        ParseRecord(await SendJsonAsync(HttpMethod.Patch, $"tasks/{Escape(id)}", new JsonObject
+        {
+            ["expected_revision"] = revision,
+            ["data"] = data.DeepClone()
+        }, cancellationToken));
+
+    public async Task<BackendRecord> UpdateTaskChecklistItemAsync(
+        string taskId,
+        string itemId,
+        int revision,
+        JsonObject data,
+        CancellationToken cancellationToken = default) =>
+        ParseRecord(await SendJsonAsync(
+            HttpMethod.Patch,
+            $"tasks/{Escape(taskId)}/checklist/{Escape(itemId)}",
+            new JsonObject
+            {
+                ["expected_revision"] = revision,
+                ["data"] = data.DeepClone()
+            },
+            cancellationToken));
 
     public async Task<BackendPage> GetAccountingTasksAsync(
         CancellationToken cancellationToken = default) =>
@@ -376,6 +421,55 @@ public sealed class HomeAssistantBackend : IStructuralOfficeDataBackend, IDispos
             "structuraloffice/test_notification", null, cancellationToken);
     }
 
+    public async Task SubscribeLiveAsync(
+        Func<JsonObject, Task> onEvent,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(onEvent);
+        using var socket = new ClientWebSocket();
+        var socketUri = new UriBuilder(BaseAddress)
+        {
+            Scheme = BaseAddress.Scheme == "https" ? "wss" : "ws",
+            Path = "/api/websocket"
+        }.Uri;
+        await socket.ConnectAsync(socketUri, cancellationToken);
+        _ = await ReceiveSocketJsonAsync(socket, cancellationToken);
+        await SendSocketJsonAsync(socket,
+            new JsonObject { ["type"] = "auth", ["access_token"] = _accessToken },
+            cancellationToken);
+        var authentication = await ReceiveSocketJsonAsync(socket, cancellationToken);
+        if (authentication["type"]?.GetValue<string>() != "auth_ok")
+        {
+            throw new BackendApiException("Home Assistant WebSocket-Anmeldung fehlgeschlagen.", 401);
+        }
+        await SendSocketJsonAsync(socket, new JsonObject
+        {
+            ["id"] = 1,
+            ["type"] = "structuraloffice/subscribe_live"
+        }, cancellationToken);
+
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            var message = await ReceiveSocketJsonAsync(socket, cancellationToken);
+            if (message["type"]?.GetValue<string>() == "result" &&
+                message["id"]?.GetValue<int>() == 1 &&
+                message["success"]?.GetValue<bool>() != true)
+            {
+                var error = message["error"] as JsonObject;
+                throw new BackendApiException(
+                    error?["message"]?.GetValue<string>() ?? "Live-Aktualisierung abgelehnt.",
+                    400,
+                    error?["code"]?.GetValue<string>());
+            }
+            if (message["type"]?.GetValue<string>() == "event" &&
+                message["id"]?.GetValue<int>() == 1 &&
+                message["event"] is JsonObject liveEvent)
+            {
+                await onEvent(liveEvent);
+            }
+        }
+    }
+
     public static Uri NormalizeBaseAddress(Uri value)
     {
         if (!value.IsAbsoluteUri || value.Scheme is not ("http" or "https"))
@@ -525,7 +619,7 @@ public sealed class HomeAssistantBackend : IStructuralOfficeDataBackend, IDispos
         BackendRecord? current = null;
         if (root["current"] is JsonObject currentObject)
         {
-            current = ParseRecord(currentObject, true);
+            current = ParseRecord(currentObject, currentObject["data"] is JsonObject);
         }
         return new BackendApiException(
             root["error"]?.GetValue<string>() ?? $"Backendfehler HTTP {statusCode}.",
