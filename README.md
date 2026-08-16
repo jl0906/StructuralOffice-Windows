@@ -14,9 +14,10 @@ dotnet run --project .\src\StructuralOffice.Desktop\StructuralOffice.Desktop.csp
 ```
 
 Enter the base URL of Home Assistant (for example `http://homeassistant.local:8123`)
-and a long-lived access token. The token is used only for the current process and is
-never written to disk. The most recently used server URL is stored below the current
-user's local application-data directory.
+and sign in through Home Assistant's OAuth page in the system browser. StructuralOffice
+never receives or stores the user's password or two-factor code. When **Stay signed in**
+is selected, the refresh token is stored in Windows Credential Manager and exchanged
+for a short-lived access token at application startup.
 
 ## Build an installable package
 
@@ -25,9 +26,12 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\Build-WindowsPac
 ```
 
 The command creates the self-contained installer `artifacts/StructuralOffice_Install.exe`.
-Run this EXE to install StructuralOffice for the current user. It does not require
-administrator rights, creates Start-menu shortcuts, and registers the program under
-Installed Apps. The registered uninstaller removes the application and its shortcuts.
+Run this EXE to install StructuralOffice for the current user. The setup dialog allows
+the installation directory and optional desktop shortcut to be selected. It creates
+Start-menu shortcuts and registers the program under Installed Apps. Starting the
+installer interactively when StructuralOffice is already registered opens the existing
+program instead of reinstalling it. Verified automatic updates use the quiet installer
+mode and keep the registered location and desktop-shortcut choice.
 
 ## Automatic updates
 

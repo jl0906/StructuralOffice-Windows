@@ -2,7 +2,7 @@
 param()
 
 $ErrorActionPreference = 'Stop'
-$installRoot = Join-Path $env:LOCALAPPDATA 'Programs\StructuralOffice'
+$installRoot = [System.IO.Path]::GetFullPath($PSScriptRoot)
 $startShortcut = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\StructuralOffice.lnk'
 $uninstallShortcut = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\StructuralOffice deinstallieren.lnk'
 $desktopShortcut = Join-Path ([Environment]::GetFolderPath('Desktop')) 'StructuralOffice.lnk'

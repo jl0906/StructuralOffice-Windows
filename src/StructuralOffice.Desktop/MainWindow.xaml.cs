@@ -11,6 +11,9 @@ namespace StructuralOffice.Desktop;
 public partial class MainWindow : Window
 {
     private readonly AppSettingsStore _settingsStore = new();
+    private readonly ICredentialStore _credentialStore = new WindowsCredentialStore();
+    private HomeAssistantSession? _session;
+    private bool _authenticated;
 
     public MainWindow()
     {
@@ -20,13 +23,115 @@ public partial class MainWindow : Window
 
     private async void OnLoaded(object sender, RoutedEventArgs eventArgs)
     {
-        var savedUrl = await _settingsStore.LoadServerUrlAsync();
-        if (!string.IsNullOrWhiteSpace(savedUrl))
+        var connection = await _settingsStore.LoadConnectionAsync();
+        if (!string.IsNullOrWhiteSpace(connection.ServerUrl))
         {
-            ServerUrlBox.Text = savedUrl;
+            ServerUrlBox.Text = connection.ServerUrl;
+        }
+        RememberLoginBox.IsChecked = connection.RememberLogin;
+
+        if (connection is { RememberLogin: true, AuthClientId: not null } &&
+            Uri.TryCreate(connection.ServerUrl, UriKind.Absolute, out var serverUri))
+        {
+            var refreshToken = _credentialStore.ReadRefreshToken();
+            if (!string.IsNullOrWhiteSpace(refreshToken))
+            {
+                SetBusy(true, "Automatische Anmeldung …");
+                try
+                {
+                    using var auth = new HomeAssistantAuthService();
+                    _session = await auth.RefreshAsync(
+                        serverUri, connection.AuthClientId, refreshToken);
+                    await ShowConnectionResultAsync(_session);
+                    SetAuthenticated(true);
+                }
+                catch (Exception exception)
+                {
+                    _credentialStore.DeleteRefreshToken();
+                    await _settingsStore.ClearRememberedLoginAsync();
+                    RememberLoginBox.IsChecked = false;
+                    ShowValidation(
+                        $"Die gespeicherte Anmeldung ist nicht mehr gültig: {exception.Message}");
+                }
+                finally
+                {
+                    SetBusy(false);
+                }
+            }
         }
 
         await CheckForUpdatesAsync();
+    }
+
+    private async void LoginButton_OnClick(object sender, RoutedEventArgs eventArgs)
+    {
+        ResultPanel.Visibility = Visibility.Collapsed;
+        if (!TryGetServerUri(out var serverUri))
+        {
+            return;
+        }
+
+        SetBusy(true, "Browser-Anmeldung wird geöffnet …");
+        try
+        {
+            using var auth = new HomeAssistantAuthService();
+            _session = await auth.LoginAsync(serverUri!);
+            var remember = RememberLoginBox.IsChecked == true;
+            if (remember)
+            {
+                _credentialStore.WriteRefreshToken(_session.RefreshToken!);
+            }
+            else
+            {
+                _credentialStore.DeleteRefreshToken();
+            }
+
+            await _settingsStore.SaveConnectionAsync(
+                _session.ServerAddress.ToString().TrimEnd('/'),
+                remember,
+                remember ? _session.ClientId : null);
+            await ShowConnectionResultAsync(_session);
+            SetAuthenticated(true);
+        }
+        catch (OperationCanceledException)
+        {
+            ShowValidation("Die Anmeldung wurde abgebrochen oder hat zu lange gedauert.");
+        }
+        catch (Exception exception)
+        {
+            ShowValidation($"Anmeldung fehlgeschlagen: {exception.Message}");
+        }
+        finally
+        {
+            SetBusy(false);
+        }
+    }
+
+    private async void LogoutButton_OnClick(object sender, RoutedEventArgs eventArgs)
+    {
+        _credentialStore.DeleteRefreshToken();
+        await _settingsStore.ClearRememberedLoginAsync();
+        _session = null;
+        RememberLoginBox.IsChecked = false;
+        SetAuthenticated(false);
+        ResultPanel.Visibility = Visibility.Collapsed;
+    }
+
+    private bool TryGetServerUri(out Uri? serverUri)
+    {
+        if (!Uri.TryCreate(ServerUrlBox.Text.Trim(), UriKind.Absolute, out serverUri) ||
+            serverUri.Scheme is not ("http" or "https"))
+        {
+            ShowValidation("Bitte eine vollständige HTTP- oder HTTPS-Adresse eingeben.");
+            return false;
+        }
+        return true;
+    }
+
+    private async Task ShowConnectionResultAsync(HomeAssistantSession session)
+    {
+        using var backend = new HomeAssistantBackend(session.ServerAddress, session.AccessToken);
+        ShowResult(await backend.CheckAsync());
     }
 
     private async Task CheckForUpdatesAsync()
@@ -53,41 +158,10 @@ public partial class MainWindow : Window
         }
     }
 
-    private async void CheckButton_OnClick(object sender, RoutedEventArgs eventArgs)
-    {
-        ResultPanel.Visibility = Visibility.Collapsed;
-
-        if (!Uri.TryCreate(ServerUrlBox.Text.Trim(), UriKind.Absolute, out var serverUri) ||
-            serverUri.Scheme is not ("http" or "https"))
-        {
-            ShowValidation("Bitte eine vollständige HTTP- oder HTTPS-Adresse eingeben.");
-            return;
-        }
-
-        if (string.IsNullOrWhiteSpace(AccessTokenBox.Password))
-        {
-            ShowValidation("Bitte ein langlebiges Home-Assistant-Zugriffstoken eingeben.");
-            return;
-        }
-
-        SetBusy(true);
-        try
-        {
-            using var backend = new HomeAssistantBackend(serverUri, AccessTokenBox.Password);
-            var result = await backend.CheckAsync();
-            await _settingsStore.SaveServerUrlAsync(backend.BaseAddress.ToString().TrimEnd('/'));
-            ShowResult(result);
-        }
-        finally
-        {
-            SetBusy(false);
-        }
-    }
-
     private void ShowValidation(string detail)
     {
         ShowResult(new IntegrationCheckResult(
-            [new CheckItem("Eingabe", CheckState.Error, detail)],
+            [new CheckItem("Verbindung", CheckState.Error, detail)],
             null,
             DateTimeOffset.Now));
     }
@@ -107,10 +181,21 @@ public partial class MainWindow : Window
         ResultPanel.Visibility = Visibility.Visible;
     }
 
-    private void SetBusy(bool busy)
+    private void SetBusy(bool busy, string message = "")
     {
-        CheckButton.IsEnabled = !busy;
-        ProgressText.Text = busy ? "Prüfung läuft …" : string.Empty;
+        LoginButton.IsEnabled = !busy;
+        ServerUrlBox.IsEnabled = !busy && !_authenticated;
+        RememberLoginBox.IsEnabled = !busy && !_authenticated;
+        ProgressText.Text = busy ? message : string.Empty;
+    }
+
+    private void SetAuthenticated(bool authenticated)
+    {
+        _authenticated = authenticated;
+        LoginButton.Visibility = authenticated ? Visibility.Collapsed : Visibility.Visible;
+        LogoutButton.Visibility = authenticated ? Visibility.Visible : Visibility.Collapsed;
+        ServerUrlBox.IsEnabled = !authenticated;
+        RememberLoginBox.IsEnabled = !authenticated;
     }
 
     private sealed record CheckItemView(string Name, string Detail, Brush Color);

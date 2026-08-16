@@ -27,30 +27,35 @@
                         </StackPanel>
                     </Border>
                 </StackPanel>
-                <TextBlock DockPanel.Dock="Bottom" Text="Version 0.1.0-alpha"
+                <TextBlock DockPanel.Dock="Bottom" Text="Version 0.2.0-alpha"
                            Foreground="#657086" FontSize="11" />
             </DockPanel>
         </Border>
 
         <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto">
             <StackPanel Margin="44,38,48,44" MaxWidth="660" HorizontalAlignment="Left">
-                <TextBlock Text="Home Assistant prüfen" FontSize="28" FontWeight="SemiBold" />
+                <TextBlock Text="Mit Home Assistant verbinden" FontSize="28" FontWeight="SemiBold" />
                 <TextBlock Margin="0,8,0,28" Foreground="#98A4B8" FontSize="14"
                            TextWrapping="Wrap"
-                           Text="Verbinde StructuralOffice mit deiner Home-Assistant-Instanz und prüfe, ob die benötigte Integration bereit ist." />
+                           Text="Melde dich sicher über Home Assistant an. Passwort und Zwei-Faktor-Code werden ausschließlich von Home Assistant verarbeitet." />
 
                 <TextBlock Text="Home-Assistant-Adresse" Margin="0,0,0,7" />
                 <TextBox x:Name="ServerUrlBox" Text="http://homeassistant.local:8123"
                          ToolTip="Zum Beispiel http://homeassistant.local:8123" />
 
-                <TextBlock Text="Langlebiges Zugriffstoken" Margin="0,20,0,7" />
-                <PasswordBox x:Name="AccessTokenBox" />
-                <TextBlock Margin="0,7,0,22" Foreground="#748097" FontSize="11"
-                           Text="Das Token wird nicht gespeichert und beim Schließen verworfen." />
+                <CheckBox x:Name="RememberLoginBox" Margin="0,18,0,7"
+                          Foreground="#E8EDF7" IsChecked="True"
+                          Content="Angemeldet bleiben" />
+                <TextBlock Margin="24,0,0,22" Foreground="#748097" FontSize="11"
+                           TextWrapping="Wrap"
+                           Text="Speichert ein Refresh-Token geschützt im Windows-Anmeldeinformationsspeicher. Dein Passwort wird nie gespeichert." />
 
                 <StackPanel Orientation="Horizontal">
-                    <Button x:Name="CheckButton" Content="Verbindung prüfen"
-                            Click="CheckButton_OnClick" />
+                    <Button x:Name="LoginButton" Content="Mit Home Assistant anmelden"
+                            Click="LoginButton_OnClick" />
+                    <Button x:Name="LogoutButton" Content="Abmelden" Margin="10,0,0,0"
+                            Background="#38445A" Visibility="Collapsed"
+                            Click="LogoutButton_OnClick" />
                     <TextBlock x:Name="ProgressText" Margin="14,0,0,0"
                                VerticalAlignment="Center" Foreground="#98A4B8" />
                 </StackPanel>
@@ -60,7 +65,7 @@
                         BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
                         CornerRadius="8" Visibility="Collapsed">
                     <StackPanel>
-                        <TextBlock Text="Prüfergebnis" FontSize="17" FontWeight="SemiBold"
+                        <TextBlock Text="Verbindungsstatus" FontSize="17" FontWeight="SemiBold"
                                    Margin="0,0,0,14" />
                         <ItemsControl x:Name="ResultItems">
                             <ItemsControl.ItemTemplate>

@@ -26,6 +26,15 @@ public sealed class AppSettingsStore
         return (await LoadAsync()).LastUpdateCheck;
     }
 
+    public async Task<SavedConnection> LoadConnectionAsync()
+    {
+        var settings = await LoadAsync();
+        return new SavedConnection(
+            settings.ServerUrl,
+            settings.RememberLogin,
+            settings.AuthClientId);
+    }
+
     private async Task<AppSettings> LoadAsync()
     {
         try
@@ -61,6 +70,26 @@ public sealed class AppSettingsStore
         await SaveAsync(settings with { LastUpdateCheck = checkedAt });
     }
 
+    public async Task SaveConnectionAsync(
+        string serverUrl,
+        bool rememberLogin,
+        string? authClientId)
+    {
+        var settings = await LoadAsync();
+        await SaveAsync(settings with
+        {
+            ServerUrl = serverUrl,
+            RememberLogin = rememberLogin,
+            AuthClientId = authClientId
+        });
+    }
+
+    public async Task ClearRememberedLoginAsync()
+    {
+        var settings = await LoadAsync();
+        await SaveAsync(settings with { RememberLogin = false, AuthClientId = null });
+    }
+
     private async Task SaveAsync(AppSettings settings)
     {
         var directory = Path.GetDirectoryName(_settingsPath)!;
@@ -71,5 +100,12 @@ public sealed class AppSettingsStore
 
     private sealed record AppSettings(
         string? ServerUrl = null,
-        DateTimeOffset? LastUpdateCheck = null);
+        DateTimeOffset? LastUpdateCheck = null,
+        bool RememberLogin = false,
+        string? AuthClientId = null);
+
+    public sealed record SavedConnection(
+        string? ServerUrl,
+        bool RememberLogin,
+        string? AuthClientId);
 }
