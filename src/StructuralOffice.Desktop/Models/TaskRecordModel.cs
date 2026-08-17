@@ -44,14 +44,18 @@ public sealed class TaskRecordModel
             SettlementConfirmationRequired =
                 snapshot["settlement_confirmation_required"]?.GetValue<bool>() ?? false
         };
-        if (Text(value, "source_type") == "accounting_due_batch" &&
-            Text(snapshot, "invoice_range") is { Length: > 0 } invoiceRange)
+        if (Text(value, "source_type") == "accounting_due_batch")
         {
             var taskType = Text(snapshot, "task_type");
-            model.Title = taskType == "dunning"
-                ? UiLocalization.Choose($"Write dunning notice {invoiceRange}", $"Mahnung {invoiceRange} schreiben")
-                : UiLocalization.Choose($"Write payment reminders {invoiceRange}", $"Zahlungserinnerungen {invoiceRange} schreiben");
-            var openCount = snapshot["invoice_count_open"]?.ToString() ?? "0";
+            var openCount = snapshot["invoice_count_open"]?.GetValue<int>() ?? 0;
+            var currency = Text(snapshot, "currency");
+            var subject = taskType == "dunning"
+                ? UiLocalization.Choose("Process dunning notices", "Mahnungen bearbeiten")
+                : UiLocalization.Choose("Process payment reminders", "Zahlungserinnerungen bearbeiten");
+            var invoices = UiLocalization.Choose(
+                openCount == 1 ? "invoice" : "invoices",
+                openCount == 1 ? "Rechnung" : "Rechnungen");
+            model.Title = $"{subject} · {openCount} {invoices} · {currency}";
             model.Description = UiLocalization.Choose(
                 $"{openCount} overdue open invoices.",
                 $"{openCount} offene überfällige Rechnungen.");
@@ -99,13 +103,43 @@ public sealed class TaskRecordModel
     public JsonObject ToUpdateJson()
     {
         Validate();
-        return new JsonObject
+        var result = new JsonObject
         {
             ["due_at"] = ToBackendDueAt(DueAt),
             ["priority"] = Priority,
             ["estimated_minutes"] = EstimatedMinutes,
-            ["completion_note"] = CompletionNote.Trim()
+            ["completion_note"] = CompletionNote.Trim(),
+            ["status"] = Status
         };
+        if (SourceType != "manual")
+        {
+            return result;
+        }
+        result["title"] = Title.Trim();
+        result["description"] = Description.Trim();
+        result["category"] = Category.Trim();
+        result["checklist"] = ChecklistJson(includeState: true);
+        return result;
+    }
+
+    private JsonArray ChecklistJson(bool includeState)
+    {
+        var checklist = new JsonArray();
+        foreach (var item in Checklist.Where(item => !string.IsNullOrWhiteSpace(item.Title)))
+        {
+            var value = new JsonObject
+            {
+                ["title"] = item.Title.Trim(),
+                ["required"] = item.Required
+            };
+            if (includeState)
+            {
+                value["completed"] = item.Completed;
+                value["note"] = item.Note.Trim();
+            }
+            checklist.Add(value);
+        }
+        return checklist;
     }
 
     private void Validate()

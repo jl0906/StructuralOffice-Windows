@@ -9,7 +9,7 @@
     <RootNamespace>StructuralOffice.Desktop</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\StructuralOffice.ico</ApplicationIcon>
-    <Version>0.9.3-beta</Version>
+    <Version>1.0.0-rc1</Version>
   </PropertyGroup>
   <ItemGroup>
     <Resource Include="Assets\icon.png" />

@@ -24,7 +24,7 @@
                     <StackPanel DockPanel.Dock="Bottom">
                         <TextBlock Text="Secure sign-in through Home Assistant"
                                    Foreground="#657086" FontSize="11" TextWrapping="Wrap" />
-                        <TextBlock Text="Version 0.9.3-beta" Foreground="#94A3B8"
+                        <TextBlock Text="Version 1.0.0-rc1" Foreground="#94A3B8"
                                    FontSize="11" Margin="0,5,0,0" />
                     </StackPanel>
                 </DockPanel>
@@ -105,7 +105,7 @@
                             <Image Source="Assets/icon.png" Width="38" Height="38" />
                             <StackPanel Margin="11,0,0,0" VerticalAlignment="Center">
                                 <TextBlock Text="StructuralOffice" FontSize="17" FontWeight="SemiBold" Foreground="White" />
-                                <TextBlock Text="0.9.3-beta" FontSize="10" Foreground="#94A3B8" />
+                                <TextBlock Text="1.0.0-rc1" FontSize="10" Foreground="#94A3B8" />
                             </StackPanel>
                         </StackPanel>
 
@@ -282,7 +282,8 @@
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
 
-                        <Border Grid.Row="0" Style="{StaticResource CardStyle}" Padding="16,12" Margin="0,0,0,12">
+                        <Border x:Name="ModuleToolbarPanel" Grid.Row="0" Style="{StaticResource CardStyle}"
+                                Padding="16,12" Margin="0,0,0,12">
                             <DockPanel LastChildFill="True">
                                 <WrapPanel DockPanel.Dock="Left">
                                     <Button x:Name="RefreshModuleButton" Content="Aktualisieren"
@@ -398,6 +399,170 @@
                                 <ColumnDefinition Width="16" />
                                 <ColumnDefinition Width="1.25*" MinWidth="430" />
                             </Grid.ColumnDefinitions>
+                            <Grid x:Name="TaskYearPanel" Grid.ColumnSpan="3" Visibility="Collapsed">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
+
+                                <Border Grid.Row="0" CornerRadius="13" Padding="26,22" Margin="0,0,0,16">
+                                    <Border.Background>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                            <GradientStop Color="#2563EB" Offset="0" />
+                                            <GradientStop Color="#1D4ED8" Offset="1" />
+                                        </LinearGradientBrush>
+                                    </Border.Background>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock x:Name="TaskYearTitleText" Text="Aufgaben 2026" Foreground="White"
+                                                       FontSize="22" FontWeight="SemiBold" />
+                                            <TextBlock x:Name="TaskYearSummaryText" Text="Aufgaben werden geladen"
+                                                       Foreground="#DCE9FF" FontSize="13" Margin="0,7,0,0" />
+                                        </StackPanel>
+                                        <Border Grid.Column="1" Background="#26FFFFFF" CornerRadius="18"
+                                                Padding="15,8" VerticalAlignment="Center">
+                                            <TextBlock x:Name="TaskYearEffortText" Text="–" Foreground="White"
+                                                       FontWeight="SemiBold" />
+                                        </Border>
+                                    </Grid>
+                                </Border>
+
+                                <Border Grid.Row="1" Style="{StaticResource CardStyle}" Padding="14,11"
+                                        Margin="0,0,0,14">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                        <StackPanel Orientation="Horizontal">
+                                            <ComboBox x:Name="YearTaskStatusFilterBox" Width="160" Margin="0,0,9,0"
+                                                      SelectedIndex="0" SelectionChanged="YearTaskFilterBox_OnChanged">
+                                                <ComboBoxItem Content="Alle Status" Tag="" />
+                                                <ComboBoxItem Content="Offen" Tag="open" />
+                                                <ComboBoxItem Content="In Bearbeitung" Tag="in_progress" />
+                                                <ComboBoxItem Content="Erledigt" Tag="completed" />
+                                                <ComboBoxItem Content="Übersprungen" Tag="skipped" />
+                                                <ComboBoxItem Content="Abgebrochen" Tag="cancelled" />
+                                            </ComboBox>
+                                            <ComboBox x:Name="YearTaskSourceFilterBox" Width="180" SelectedIndex="0"
+                                                      SelectionChanged="YearTaskFilterBox_OnChanged">
+                                                <ComboBoxItem Content="Alle Aufgabenarten" Tag="" />
+                                                <ComboBoxItem Content="Routinen" Tag="routine" />
+                                                <ComboBoxItem Content="Manuell" Tag="manual" />
+                                                <ComboBoxItem Content="Zahlung &amp; Mahnung" Tag="accounting_due_batch" />
+                                            </ComboBox>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                            <TextBlock x:Name="TaskSelectionText" Text="Keine Auswahl"
+                                                       Foreground="#64748B" VerticalAlignment="Center" Margin="0,0,14,0" />
+                                            <Button Content="↻" Width="42" Padding="0" ToolTip="Aktualisieren"
+                                                    Style="{StaticResource SecondaryButtonStyle}"
+                                                    Click="RefreshModuleButton_OnClick" Margin="0,0,8,0" />
+                                            <Button x:Name="TaskAddButton" Content="+" Width="42" Padding="0"
+                                                    FontSize="20" ToolTip="Neue Aufgabe"
+                                                    Click="NewTaskButton_OnClick" Margin="0,0,8,0" />
+                                            <Button x:Name="TaskEditButton" Content="Bearbeiten" IsEnabled="False"
+                                                    Style="{StaticResource SecondaryButtonStyle}"
+                                                    Click="TaskEditButton_OnClick" Margin="0,0,8,0" />
+                                            <Button x:Name="TaskBulkDeleteButton" Content="Ausgewählte löschen"
+                                                    IsEnabled="False" Background="#FEE2E2" Foreground="#B91C1C"
+                                                    Click="TaskBulkDeleteButton_OnClick" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+
+                                <Grid Grid.Row="2">
+                                    <TextBlock x:Name="TaskYearEmptyText"
+                                               Text="Für dieses Kalenderjahr wurden keine Aufgaben gefunden."
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                                               Foreground="#64748B" FontSize="14" Visibility="Collapsed" />
+                                    <ListBox x:Name="TaskYearList" Background="Transparent" BorderThickness="0"
+                                             SelectionMode="Extended" HorizontalContentAlignment="Stretch"
+                                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                             SelectionChanged="TaskYearList_OnSelectionChanged">
+                                        <ListBox.ItemContainerStyle>
+                                            <Style TargetType="ListBoxItem">
+                                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                                <Setter Property="Padding" Value="0" />
+                                                <Setter Property="Margin" Value="0" />
+                                                <Setter Property="Background" Value="Transparent" />
+                                                <Setter Property="BorderThickness" Value="0" />
+                                                <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}" />
+                                                <EventSetter Event="PreviewMouseLeftButtonDown"
+                                                             Handler="TaskYearItem_OnPreviewMouseLeftButtonDown" />
+                                            </Style>
+                                        </ListBox.ItemContainerStyle>
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding MonthTitle}" FontSize="18"
+                                                               FontWeight="SemiBold" Margin="2,18,0,10">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsMonthStart}" Value="True">
+                                                                        <Setter Property="Visibility" Value="Visible" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                    <Border CornerRadius="11" BorderBrush="#DCE4EF" BorderThickness="1"
+                                                            Margin="0,0,0,10">
+                                                        <Border.Style>
+                                                            <Style TargetType="Border">
+                                                                <Setter Property="Background" Value="White" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                                        <Setter Property="Background" Value="#EFF6FF" />
+                                                                        <Setter Property="BorderBrush" Value="#60A5FA" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Border.Style>
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="52" />
+                                                                <ColumnDefinition Width="128" />
+                                                                <ColumnDefinition Width="6" />
+                                                                <ColumnDefinition Width="*" />
+                                                                <ColumnDefinition Width="Auto" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <CheckBox Grid.Column="0" IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                                      HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                      IsEnabled="{Binding IsActive}" />
+                                                            <StackPanel Grid.Column="1" Margin="4,14,12,14">
+                                                                <TextBlock Text="{Binding DayLabel}" FontSize="20"
+                                                                           FontWeight="SemiBold" />
+                                                                <TextBlock Text="{Binding WeekdayAndTime}" Foreground="#64748B"
+                                                                           FontSize="11" Margin="0,3,0,0" />
+                                                            </StackPanel>
+                                                            <Border Grid.Column="2" Background="{Binding Accent}" />
+                                                            <StackPanel Grid.Column="3" Margin="20,14" VerticalAlignment="Center">
+                                                                <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="SemiBold"
+                                                                           TextTrimming="CharacterEllipsis" />
+                                                                <TextBlock Text="{Binding Meta}" Foreground="#64748B" FontSize="12"
+                                                                           Margin="0,5,0,0" TextTrimming="CharacterEllipsis" />
+                                                            </StackPanel>
+                                                            <StackPanel Grid.Column="4" Orientation="Horizontal" Margin="12,0,16,0"
+                                                                        VerticalAlignment="Center">
+                                                                <Border Background="#EFF6FF" CornerRadius="14" Padding="11,6"
+                                                                        Margin="0,0,9,0">
+                                                                    <TextBlock Text="{Binding Duration}" Foreground="#1D4ED8"
+                                                                               FontWeight="SemiBold" />
+                                                                </Border>
+                                                                <Border Background="#F1F5F9" CornerRadius="14" Padding="11,6">
+                                                                    <TextBlock Text="{Binding Status}" Foreground="#475569" />
+                                                                </Border>
+                                                            </StackPanel>
+                                                        </Grid>
+                                                    </Border>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                </Grid>
+                            </Grid>
                             <Border x:Name="RecordListCard" Grid.Column="0"
                                     Style="{StaticResource CardStyle}" Padding="0">
                                 <DataGrid x:Name="ModuleDataGrid" AutoGenerateColumns="False" IsReadOnly="True"

@@ -2,6 +2,24 @@
 
 ## [Unreleased]
 
+## [1.0.0-rc1] - 2026-08-17
+
+### Added
+
+- A full-calendar-year task view with monthly sections, workload summary, and status
+  and source filters.
+- A shared modern popup for both creating and editing tasks.
+- Multi-selection with atomic bulk removal of active tasks.
+
+### Changed
+
+- Removed the permanent right-hand task editor in favor of a wide, dashboard-style
+  task list matching the Today page.
+- Automatic accounting tasks are presented as coherent stage-and-currency work packages
+  with invoice counts instead of invoice-number ranges.
+- Manual task editing now includes title, description, category, schedule, status, and
+  checklist structure.
+
 ## [0.9.3-beta] - 2026-08-17
 
 ### Changed

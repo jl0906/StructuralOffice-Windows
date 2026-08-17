@@ -2,10 +2,13 @@ using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using Microsoft.Win32;
 using StructuralOffice.Desktop.Models;
@@ -28,6 +31,7 @@ public partial class MainWindow : Window
     private string? _editRecordId;
     private string? _editCollection;
     private List<DisplayRecord> _allDisplayRows = [];
+    private List<BackendRecord> _allYearTaskRecords = [];
     private readonly ObservableCollection<TopicStepModel> _topicSteps = [];
     private readonly ObservableCollection<RoutineTopicOption> _routineTopics = [];
     private readonly ObservableCollection<TaskChecklistItemModel> _taskChecklist = [];
@@ -502,13 +506,15 @@ public partial class MainWindow : Window
     {
         var title = FirstText(task, "title");
         if (task["snapshot"] is not JsonObject snapshot) return LocalizeCanonicalTaskTitle(title);
-        var range = FirstText(snapshot, "invoice_range");
-        if (string.IsNullOrWhiteSpace(range))
+        if (FirstText(task, "source_type") != "accounting_due_batch")
             return FirstText(snapshot, "topic_name") is { Length: > 0 } topic
                 ? LocalizeCanonicalTaskTitle(topic) : LocalizeCanonicalTaskTitle(title);
-        return FirstText(snapshot, "task_type") == "dunning"
-            ? UiLocalization.Choose($"Write dunning notice {range}", $"Mahnung {range} schreiben")
-            : UiLocalization.Choose($"Write payment reminders {range}", $"Zahlungserinnerungen {range} schreiben");
+        var count = IntValue(snapshot, "invoice_count_open");
+        var currency = FirstText(snapshot, "currency");
+        var subject = FirstText(snapshot, "task_type") == "dunning"
+            ? UiLocalization.Choose("Process dunning notices", "Mahnungen bearbeiten")
+            : UiLocalization.Choose("Process payment reminders", "Zahlungserinnerungen bearbeiten");
+        return $"{subject} · {count} {UiLocalization.Choose(count == 1 ? "invoice" : "invoices", count == 1 ? "Rechnung" : "Rechnungen")} · {currency}";
     }
 
     private static string LocalizeCanonicalTaskTitle(string title)
@@ -527,11 +533,13 @@ public partial class MainWindow : Window
     {
         if (TodayTasksList.SelectedItem is not TodayTaskItem task) return;
         await ShowPageAsync("tasks");
-        var row = _allDisplayRows.FirstOrDefault(item => item.Record.Id == task.Id);
+        var row = TaskYearList.Items.OfType<YearTaskItem>()
+            .FirstOrDefault(item => item.Record.Id == task.Id);
         if (row is not null)
         {
-            ModuleDataGrid.SelectedItem = row;
-            ModuleDataGrid.ScrollIntoView(row);
+            row.IsSelected = true;
+            TaskYearList.SelectedItem = row;
+            TaskYearList.ScrollIntoView(row);
         }
         TodayTasksList.SelectedItem = null;
     }
@@ -573,8 +581,6 @@ public partial class MainWindow : Window
         var canEditLive = pageKey is "topics" or "routines" ||
                           (_developerMode && pageKey == "invoices");
         SetVisibility(canEditLive, NewRecordButton, SaveRecordButton, ArchiveRecordButton);
-        SetVisibility(pageKey == "tasks", TaskStatusFilterBox,
-            TaskSourceFilterBox, NewTaskButton, TaskActionPanel);
         SetVisibility(pageKey == "invoices", ImportInvoicesButton, ImportExcelButton, ExportInvoicesButton,
             ExportCsvButton, DownloadTemplateButton);
         SetVisibility(pageKey == "documents", DocumentTypeBox, GenerateDocumentButton);
@@ -590,6 +596,8 @@ public partial class MainWindow : Window
         var isTopicEditor = pageKey == "topics";
         var isRoutineEditor = pageKey == "routines";
         var isTaskEditor = pageKey == "tasks";
+        ModuleToolbarPanel.Visibility = isTaskEditor ? Visibility.Collapsed : Visibility.Visible;
+        TaskYearPanel.Visibility = isTaskEditor ? Visibility.Visible : Visibility.Collapsed;
         ContactEditorPanel.Visibility = isContactEditor ? Visibility.Visible : Visibility.Collapsed;
         TopicEditorPanel.Visibility = isTopicEditor ? Visibility.Visible : Visibility.Collapsed;
         RoutineEditorPanel.Visibility = isRoutineEditor ? Visibility.Visible : Visibility.Collapsed;
@@ -601,11 +609,11 @@ public partial class MainWindow : Window
         RecordEditorText.IsReadOnly = !isLiveEditor;
         IncludeArchivedBox.Visibility = _developerMode && isLiveEditor
             ? Visibility.Visible : Visibility.Collapsed;
-        var settingsWithoutDeveloperDetails = pageKey == "settings" && !_developerMode;
-        RecordListCard.Visibility = settingsWithoutDeveloperDetails
-            ? Visibility.Collapsed : Visibility.Visible;
-        Grid.SetColumn(EditorCard, settingsWithoutDeveloperDetails ? 0 : 2);
-        Grid.SetColumnSpan(EditorCard, settingsWithoutDeveloperDetails ? 3 : 1);
+        var fullWidthWithoutRecordList = isTaskEditor || pageKey == "settings" && !_developerMode;
+        RecordListCard.Visibility = fullWidthWithoutRecordList ? Visibility.Collapsed : Visibility.Visible;
+        EditorCard.Visibility = isTaskEditor ? Visibility.Collapsed : Visibility.Visible;
+        Grid.SetColumn(EditorCard, fullWidthWithoutRecordList ? 0 : 2);
+        Grid.SetColumnSpan(EditorCard, fullWidthWithoutRecordList ? 3 : 1);
         ConfigureDeveloperVisibility();
         EditorHelpText.Text = UiLocalization.IsGerman
             ? isContactEditor
@@ -679,9 +687,8 @@ public partial class MainWindow : Window
             case "tasks":
                 _currentDataMode = "tasks";
                 _newManualTask = false;
-                LoadRows((await _backend.GetTasksAsync(
-                    NullIfEmpty(SelectedTag(TaskStatusFilterBox)),
-                    NullIfEmpty(SelectedTag(TaskSourceFilterBox)))).Items);
+                _allYearTaskRecords = [.. (await _backend.GetTasksAsync()).Items];
+                ApplyYearTaskFilter();
                 break;
             case "documents":
                 _currentDataMode = "documents";
@@ -705,7 +712,7 @@ public partial class MainWindow : Window
                 var check = await _backend.CheckAsync();
                 var data = new JsonObject
                 {
-                    ["application_version"] = "0.9.3-beta",
+                    ["application_version"] = "1.0.0-rc1",
                     ["backend"] = _backend.DisplayName,
                     ["integration_version"] = check.IntegrationVersion,
                     ["server"] = _session?.ServerAddress.ToString(),
@@ -1238,6 +1245,212 @@ public partial class MainWindow : Window
         }
     }
 
+    private void YearTaskFilterBox_OnChanged(object sender, SelectionChangedEventArgs eventArgs)
+    {
+        if (IsLoaded && _currentPage == "tasks")
+        {
+            ApplyYearTaskFilter();
+        }
+    }
+
+    private void ApplyYearTaskFilter()
+    {
+        if (TaskYearList is null || YearTaskStatusFilterBox is null || YearTaskSourceFilterBox is null)
+            return;
+
+        var year = DateTime.Today.Year;
+        var firstDay = new DateTime(year, 1, 1);
+        var nextYear = firstDay.AddYears(1);
+        var statusFilter = NullIfEmpty(SelectedTag(YearTaskStatusFilterBox));
+        var sourceFilter = NullIfEmpty(SelectedTag(YearTaskSourceFilterBox));
+        var parsed = _allYearTaskRecords
+            .Select(record => (Record: record, Task: TaskRecordModel.FromJson(record.Data)))
+            .Select(item => (item.Record, item.Task,
+                Due: DateTime.TryParse(item.Task.DueAt, out var due) ? due : (DateTime?)null))
+            .Where(item => item.Due is not null && item.Due >= firstDay && item.Due < nextYear)
+            .Where(item => statusFilter is null || item.Task.Status == statusFilter)
+            .Where(item => sourceFilter is null || item.Task.SourceType == sourceFilter)
+            .OrderBy(item => item.Due)
+            .ThenByDescending(item => PriorityRank(item.Task.Priority))
+            .ToList();
+
+        var items = new List<YearTaskItem>();
+        var previousMonth = -1;
+        var calendarCulture = CultureInfo.GetCultureInfo(
+            UiLocalization.IsGerman ? "de-DE" : "en-US");
+        foreach (var item in parsed)
+        {
+            var due = item.Due!.Value;
+            var source = item.Task.SourceType switch
+            {
+                "routine" => UiLocalization.Choose("Routine", "Routine"),
+                "accounting_due_batch" => UiLocalization.Choose("Accounting package", "Buchhaltungspaket"),
+                _ => UiLocalization.Choose("Manual task", "Manuelle Aufgabe")
+            };
+            var active = item.Task.Status is "open" or "in_progress";
+            var overdue = active && due < DateTime.Now;
+            items.Add(new YearTaskItem
+            {
+                Record = item.Record,
+                Task = item.Task,
+                MonthTitle = calendarCulture.DateTimeFormat.GetMonthName(due.Month),
+                IsMonthStart = due.Month != previousMonth,
+                DayLabel = due.ToString("dd.MM."),
+                WeekdayAndTime = due.ToString("ddd · HH:mm", calendarCulture),
+                Title = item.Task.Title,
+                Meta = $"{source} · {LocalizedStatus(item.Task.Status)} · {LocalizedPriority(item.Task.Priority)}",
+                Duration = FormatDuration(item.Task.EstimatedMinutes),
+                Status = LocalizedStatus(item.Task.Status),
+                Accent = new SolidColorBrush(overdue
+                    ? Color.FromRgb(220, 38, 38)
+                    : item.Task.Status switch
+                    {
+                        "in_progress" => Color.FromRgb(245, 158, 11),
+                        "completed" => Color.FromRgb(22, 163, 74),
+                        "skipped" or "cancelled" => Color.FromRgb(148, 163, 184),
+                        _ => Color.FromRgb(37, 99, 235)
+                    }),
+                IsActive = active
+            });
+            previousMonth = due.Month;
+        }
+
+        TaskYearList.ItemsSource = items;
+        TaskYearTitleText.Text = UiLocalization.Choose($"Tasks {year}", $"Aufgaben {year}");
+        var open = items.Count(item => item.IsActive);
+        TaskYearSummaryText.Text = UiLocalization.Choose(
+            $"{items.Count} tasks in this calendar year · {open} active",
+            $"{items.Count} Aufgaben in diesem Kalenderjahr · {open} aktiv");
+        TaskYearEffortText.Text = UiLocalization.Choose(
+            $"{FormatDuration(items.Where(item => item.IsActive).Sum(item => item.Task.EstimatedMinutes))} open effort",
+            $"{FormatDuration(items.Where(item => item.IsActive).Sum(item => item.Task.EstimatedMinutes))} offener Aufwand");
+        TaskYearEmptyText.Visibility = items.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        UpdateYearTaskSelection();
+    }
+
+    private static int PriorityRank(string priority) => priority switch
+    {
+        "critical" => 4, "high" => 3, "normal" => 2, "low" => 1, _ => 0
+    };
+
+    private void TaskYearItem_OnPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs eventArgs)
+    {
+        if (sender is not ListBoxItem container || container.DataContext is not YearTaskItem item)
+            return;
+        item.IsSelected = !item.IsSelected;
+        container.IsSelected = item.IsSelected;
+        eventArgs.Handled = true;
+        UpdateYearTaskSelection();
+    }
+
+    private void TaskYearList_OnSelectionChanged(object sender, SelectionChangedEventArgs eventArgs) =>
+        UpdateYearTaskSelection();
+
+    private void UpdateYearTaskSelection()
+    {
+        if (TaskYearList is null) return;
+        var selected = TaskYearList.Items.OfType<YearTaskItem>().Where(item => item.IsSelected).ToList();
+        var active = selected.Count(item => item.IsActive);
+        TaskSelectionText.Text = selected.Count == 0
+            ? UiLocalization.Choose("No selection", "Keine Auswahl")
+            : UiLocalization.Choose($"{selected.Count} selected", $"{selected.Count} ausgewählt");
+        TaskEditButton.IsEnabled = selected.Count == 1;
+        TaskBulkDeleteButton.IsEnabled = active > 0;
+    }
+
+    private async void TaskEditButton_OnClick(object sender, RoutedEventArgs eventArgs)
+    {
+        if (_backend is null) return;
+        var selected = TaskYearList.Items.OfType<YearTaskItem>()
+            .SingleOrDefault(item => item.IsSelected);
+        if (selected is null) return;
+        await RunModuleActionAsync(async () =>
+        {
+            var record = await _backend.GetTaskAsync(selected.Record.Id);
+            var original = TaskRecordModel.FromJson(record.Data);
+            var dialog = new TaskEditorDialog(original) { Owner = this };
+            if (dialog.ShowDialog() != true) return;
+            await SaveTaskDialogAsync(record, original, dialog.ResultTask);
+            await LoadCurrentPageCoreAsync();
+        }, UiLocalization.Choose("Task updated.", "Aufgabe aktualisiert."));
+    }
+
+    private async Task SaveTaskDialogAsync(
+        BackendRecord record, TaskRecordModel original, TaskRecordModel edited)
+    {
+        if (_backend is null) return;
+        var changes = edited.ToUpdateJson();
+        var specialAction = edited.Status == "completed" &&
+                            original.Status != "completed" &&
+                            original.SourceType == "accounting_due_batch" &&
+                            original.AvailableActions.Any(action =>
+                                action is "schedule_dunning" or "confirm_settled");
+        DateTime? dunningDueDate = null;
+        if (specialAction)
+        {
+            changes.Remove("status");
+            if (original.AvailableActions.Contains("schedule_dunning"))
+            {
+                var dialog = new DunningScheduleDialog { Owner = this };
+                if (dialog.ShowDialog() != true) return;
+                dunningDueDate = dialog.DueDate;
+            }
+            else if (original.AvailableActions.Contains("confirm_settled"))
+            {
+                var confirmed = MessageBox.Show(this, UiLocalization.Choose(
+                        "All linked invoices must be paid before this package is completed. Confirm settlement?",
+                        "Alle zugehörigen Rechnungen müssen bezahlt sein. Zahlung jetzt bestätigen?"),
+                    "StructuralOffice", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                if (confirmed != MessageBoxResult.Yes) return;
+            }
+        }
+
+        var updated = await _backend.UpdateTaskAsync(record.Id, record.Revision, changes);
+        if (original.SourceType != "manual")
+        {
+            foreach (var item in edited.Checklist.Where(item => !string.IsNullOrWhiteSpace(item.Id)))
+            {
+                var before = original.Checklist.FirstOrDefault(existing => existing.Id == item.Id);
+                if (before is not null && before.Completed == item.Completed && before.Note == item.Note)
+                    continue;
+                await _backend.UpdateTaskChecklistItemAsync(record.Id, item.Id, item.Revision,
+                    new JsonObject { ["completed"] = item.Completed, ["note"] = item.Note.Trim() });
+            }
+        }
+
+        if (!specialAction) return;
+        updated = await _backend.GetTaskAsync(record.Id);
+        if (original.AvailableActions.Contains("schedule_dunning"))
+        {
+            await _backend.ScheduleDunningAsync(
+                record.Id, updated.Revision, dunningDueDate!.Value.ToString("yyyy-MM-dd"));
+        }
+        else if (original.AvailableActions.Contains("confirm_settled"))
+        {
+            await _backend.ConfirmSettledAsync(record.Id, updated.Revision);
+        }
+    }
+
+    private async void TaskBulkDeleteButton_OnClick(object sender, RoutedEventArgs eventArgs)
+    {
+        if (_backend is null) return;
+        var selected = TaskYearList.Items.OfType<YearTaskItem>()
+            .Where(item => item.IsSelected && item.IsActive).ToList();
+        if (selected.Count == 0) return;
+        var result = MessageBox.Show(this, UiLocalization.Choose(
+                $"Remove {selected.Count} selected active tasks from the list? Their history remains available.",
+                $"{selected.Count} ausgewählte aktive Aufgaben aus der Liste entfernen? Der Verlauf bleibt erhalten."),
+            UiLocalization.Choose("Remove tasks", "Aufgaben löschen"),
+            MessageBoxButton.YesNo, MessageBoxImage.Warning);
+        if (result != MessageBoxResult.Yes) return;
+        await RunModuleActionAsync(async () =>
+        {
+            await _backend.CancelTasksAsync(selected.Select(item =>
+                (item.Record.Id, item.Record.Revision)).ToList());
+            await LoadCurrentPageCoreAsync();
+        }, UiLocalization.Choose("Tasks removed.", "Aufgaben entfernt."));
+    }
+
     private void RoutineFrequencyBox_OnSelectionChanged(
         object sender, SelectionChangedEventArgs eventArgs) => UpdateRoutineFrequencyFields();
 
@@ -1272,21 +1485,16 @@ public partial class MainWindow : Window
             $"Neue Aufgaben erhalten die Priorität {label}.");
     }
 
-    private void NewTaskButton_OnClick(object sender, RoutedEventArgs eventArgs)
+    private async void NewTaskButton_OnClick(object sender, RoutedEventArgs eventArgs)
     {
-        _selectedRecord = null;
-        ModuleDataGrid.SelectedItem = null;
-        ClearEditor();
-        _newManualTask = true;
-        SetTaskCreationMode(true);
-        EditorTitleText.Text = UiLocalization.Choose(
-            "New manual task", "Neue manuelle Aufgabe");
-        EditorMetaText.Text = UiLocalization.Choose(
-            "Created when saved", "Wird beim Speichern angelegt");
-        SaveRecordButton.IsEnabled = true;
-        TaskSaveButton.IsEnabled = true;
-        SetTaskStatusButton.IsEnabled = false;
-        TaskTitleBox.Focus();
+        if (_backend is null) return;
+        var dialog = new TaskEditorDialog { Owner = this };
+        if (dialog.ShowDialog() != true) return;
+        await RunModuleActionAsync(async () =>
+        {
+            await _backend.CreateTaskAsync(dialog.ResultTask.ToCreateJson());
+            await LoadCurrentPageCoreAsync();
+        }, UiLocalization.Choose("Task created.", "Aufgabe angelegt."));
     }
 
     private void NewRecordButton_OnClick(object sender, RoutedEventArgs eventArgs)
@@ -2252,6 +2460,18 @@ public partial class MainWindow : Window
         {
             if (exception.ErrorCode == "revision_conflict" && exception.CurrentRecord is not null)
             {
+                if (_currentPage == "tasks")
+                {
+                    await LoadCurrentPageCoreAsync();
+                    MessageBox.Show(this, UiLocalization.Choose(
+                            "At least one task changed in the meantime. The current annual list was reloaded; please select the tasks again.",
+                            "Mindestens eine Aufgabe wurde zwischenzeitlich geändert. Die aktuelle Jahresliste wurde neu geladen; bitte wähle die Aufgaben erneut aus."),
+                        UiLocalization.Choose("Task conflict", "Aufgabenkonflikt"),
+                        MessageBoxButton.OK, MessageBoxImage.Warning);
+                    ModuleBusyText.Text = UiLocalization.Choose(
+                        "Current task list loaded", "Aktuelle Aufgabenliste geladen");
+                    return;
+                }
                 _selectedRecord = CreateDisplayRecord(exception.CurrentRecord);
                 LoadRecordIntoEditor(exception.CurrentRecord);
                 EditorMetaText.Text = UiLocalization.Choose(
@@ -2425,4 +2645,35 @@ public partial class MainWindow : Window
         string Meta,
         string Duration,
         Brush Accent);
+
+    private sealed class YearTaskItem : INotifyPropertyChanged
+    {
+        private bool _isSelected;
+
+        public required BackendRecord Record { get; init; }
+        public required TaskRecordModel Task { get; init; }
+        public required string MonthTitle { get; init; }
+        public bool IsMonthStart { get; init; }
+        public required string DayLabel { get; init; }
+        public required string WeekdayAndTime { get; init; }
+        public required string Title { get; init; }
+        public required string Meta { get; init; }
+        public required string Duration { get; init; }
+        public required string Status { get; init; }
+        public required Brush Accent { get; init; }
+        public bool IsActive { get; init; }
+
+        public bool IsSelected
+        {
+            get => _isSelected;
+            set
+            {
+                if (_isSelected == value) return;
+                _isSelected = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsSelected)));
+            }
+        }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+    }
 }

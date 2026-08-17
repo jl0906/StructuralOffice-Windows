@@ -26,6 +26,8 @@ public interface IStructuralOfficeDataBackend : IStructuralOfficeBackend
         CancellationToken cancellationToken = default);
     Task<BackendRecord> UpdateTaskAsync(string id, int revision, JsonObject data,
         CancellationToken cancellationToken = default);
+    Task CancelTasksAsync(IReadOnlyList<(string Id, int Revision)> tasks,
+        CancellationToken cancellationToken = default);
     Task<JsonObject> GetTodayDashboardAsync(CancellationToken cancellationToken = default);
     Task<JsonObject> ScheduleDunningAsync(string id, int revision, string dueDate,
         CancellationToken cancellationToken = default);

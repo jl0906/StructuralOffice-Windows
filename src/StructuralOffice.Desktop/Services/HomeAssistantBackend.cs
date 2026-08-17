@@ -265,6 +265,26 @@ public sealed class HomeAssistantBackend : IStructuralOfficeDataBackend, IDispos
             ["data"] = data.DeepClone()
         }, cancellationToken));
 
+    public async Task CancelTasksAsync(
+        IReadOnlyList<(string Id, int Revision)> tasks,
+        CancellationToken cancellationToken = default)
+    {
+        var selected = new JsonArray();
+        foreach (var task in tasks)
+        {
+            selected.Add(new JsonObject
+            {
+                ["id"] = task.Id,
+                ["expected_revision"] = task.Revision
+            });
+        }
+        _ = await SendJsonAsync(
+            HttpMethod.Post,
+            "tasks/bulk-cancel",
+            new JsonObject { ["tasks"] = selected },
+            cancellationToken);
+    }
+
     public Task<JsonObject> GetTodayDashboardAsync(
         CancellationToken cancellationToken = default) =>
         GetJsonAsync("dashboard/today", cancellationToken);
