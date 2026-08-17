@@ -20,7 +20,7 @@ is selected, the refresh token is stored in Windows Credential Manager and excha
 for a short-lived access token at application startup.
 
 After authentication, the native application shell shows the verified Home Assistant
-and StructuralOffice status on its dashboard. Version `0.7.0-alpha` requires the
+and StructuralOffice status on its dashboard. Version `0.8.0-alpha` requires the
 StructuralOffice Home Assistant integration `0.7.1-alpha` or newer and provides:
 
 - revision-safe create, edit, presence, and archive workflows for contacts, topics,
@@ -37,7 +37,7 @@ StructuralOffice Home Assistant integration `0.7.1-alpha` or newer and provides:
 - administrator access to user roles, backups, restore/download/delete operations,
   test notifications, audit entries, and persisted change events.
 
-Topics, routines, tasks, and invoices use native, validated forms in `0.7.0-alpha`.
+Topics, routines, tasks, and invoices use native, validated forms in `0.8.0-alpha`.
 Contacts, documents, and dunning are marked as coming soon while their workflows are
 being redesigned.
 Data modules support text search and an optional archived-record view. The remaining

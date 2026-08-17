@@ -31,6 +31,11 @@ public sealed class AppSettingsStore
         return (await LoadAsync()).Language is "de" ? "de" : "en";
     }
 
+    public async Task<bool> LoadDeveloperModeAsync()
+    {
+        return (await LoadAsync()).DeveloperMode;
+    }
+
     public async Task<SavedConnection> LoadConnectionAsync()
     {
         var settings = await LoadAsync();
@@ -81,6 +86,12 @@ public sealed class AppSettingsStore
         await SaveAsync(settings with { Language = language == "de" ? "de" : "en" });
     }
 
+    public async Task SaveDeveloperModeAsync(bool enabled)
+    {
+        var settings = await LoadAsync();
+        await SaveAsync(settings with { DeveloperMode = enabled });
+    }
+
     public async Task SaveConnectionAsync(
         string serverUrl,
         bool rememberLogin,
@@ -114,7 +125,8 @@ public sealed class AppSettingsStore
         DateTimeOffset? LastUpdateCheck = null,
         bool RememberLogin = false,
         string? AuthClientId = null,
-        string Language = "en");
+        string Language = "en",
+        bool DeveloperMode = false);
 
     public sealed record SavedConnection(
         string? ServerUrl,

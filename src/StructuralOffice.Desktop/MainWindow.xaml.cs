@@ -32,8 +32,10 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<RoutineTopicOption> _routineTopics = [];
     private readonly ObservableCollection<TaskChecklistItemModel> _taskChecklist = [];
     private CancellationTokenSource? _liveUpdatesCancellation;
+    private CancellationTokenSource? _editPresenceRefreshCancellation;
     private bool _newManualTask;
     private bool _languageReady;
+    private bool _developerMode;
 
     private static readonly JsonSerializerOptions PrettyJson = new() { WriteIndented = true };
 
@@ -88,6 +90,7 @@ public partial class MainWindow : Window
         Closed += (_, _) =>
         {
             _liveUpdatesCancellation?.Cancel();
+            _editPresenceRefreshCancellation?.Cancel();
             _backend?.Dispose();
         };
     }
@@ -97,7 +100,10 @@ public partial class MainWindow : Window
         var language = await _settingsStore.LoadLanguageAsync();
         UiLocalization.SetLanguage(language);
         SelectComboTag(LanguageBox, language);
+        _developerMode = await _settingsStore.LoadDeveloperModeAsync();
+        DeveloperModeBox.IsChecked = _developerMode;
         UiLocalization.Apply(this);
+        ConfigureDeveloperVisibility();
         _languageReady = true;
 
         var connection = await _settingsStore.LoadConnectionAsync();
@@ -325,6 +331,23 @@ public partial class MainWindow : Window
         }
     }
 
+    private async void DeveloperModeBox_OnChanged(object sender, RoutedEventArgs eventArgs)
+    {
+        if (!_languageReady) return;
+        _developerMode = DeveloperModeBox.IsChecked == true;
+        await _settingsStore.SaveDeveloperModeAsync(_developerMode);
+        if (!_developerMode && SelectedTag(AdministrationSectionBox) is "audit" or "events")
+        {
+            AdministrationSectionBox.SelectedIndex = 0;
+        }
+        ConfigureDeveloperVisibility();
+        if (_authenticated && _currentPage != "overview")
+        {
+            ConfigureModuleActions(_currentPage);
+            await LoadCurrentPageAsync();
+        }
+    }
+
     private void ShowPage(string pageKey)
     {
         _ = ShowPageAsync(pageKey);
@@ -346,8 +369,11 @@ public partial class MainWindow : Window
         else if (WorkspacePages.TryGetValue(pageKey, out var page))
         {
             PageTitleText.Text = UiLocalization.Text(page.Title);
+            var englishDescription = pageKey == "administration" && !_developerMode
+                ? "Manage user roles and backups."
+                : page.Description;
             PageSubtitleText.Text = UiLocalization.Choose(
-                page.Description,
+                englishDescription,
                 pageKey switch
                 {
                     "contacts" => "Kunden, Firmen und Ansprechpartner zentral verwalten.",
@@ -358,7 +384,9 @@ public partial class MainWindow : Window
                     "documents" => "Dokumente zu Kontakten und Vorgängen geordnet bereitstellen.",
                     "accounting" => "Automatische Mahnläufe, Rechnungsgruppen und Eskalationsregeln verwalten.",
                     "settings" => "Verbindung, Sprache, Updates und Datenmodus konfigurieren.",
-                    _ => "Benutzerrollen, Backups und revisionssichere Änderungsprotokolle verwalten."
+                    _ => _developerMode
+                        ? "Benutzerrollen, Backups und technische Änderungsprotokolle verwalten."
+                        : "Benutzerrollen und Backups verwalten."
                 });
         }
         else
@@ -396,8 +424,8 @@ public partial class MainWindow : Window
     {
         var all = new UIElement[]
         {
-            NewRecordButton, SaveRecordButton, ArchiveRecordButton, StartEditingButton,
-            ShowEditorsButton, EndEditingButton, TaskStatusFilterBox, TaskSourceFilterBox,
+            NewRecordButton, SaveRecordButton, ArchiveRecordButton,
+            TaskStatusFilterBox, TaskSourceFilterBox,
             NewTaskButton, TaskStatusBox,
             SetTaskStatusButton, ImportInvoicesButton, ImportExcelButton,
             ExportInvoicesButton, ExportCsvButton,
@@ -405,7 +433,7 @@ public partial class MainWindow : Window
             AccountingMembersButton, AccountingRulesButton, AdministrationSectionBox,
             RoleBox, SetRoleButton, CreateBackupButton, DownloadBackupButton,
             RestoreBackupButton, DeleteBackupButton, TestNotificationButton,
-            ManualUpdateButton, LanguageBox
+            ManualUpdateButton, LanguageBox, DeveloperModeBox
         };
         foreach (var element in all)
         {
@@ -413,8 +441,10 @@ public partial class MainWindow : Window
         }
 
         var isLiveEditor = pageKey is "contacts" or "topics" or "routines" or "invoices";
-        SetVisibility(isLiveEditor, NewRecordButton, SaveRecordButton, ArchiveRecordButton,
-            StartEditingButton, ShowEditorsButton, EndEditingButton);
+        var hasFriendlyEditor = pageKey is "contacts" or "topics" or "routines" or "tasks";
+        var canEditLive = pageKey is "topics" or "routines" ||
+                          (_developerMode && pageKey == "invoices");
+        SetVisibility(canEditLive, NewRecordButton, SaveRecordButton, ArchiveRecordButton);
         SetVisibility(pageKey == "tasks", SaveRecordButton, TaskStatusFilterBox,
             TaskSourceFilterBox, NewTaskButton, TaskStatusBox, SetTaskStatusButton);
         SetVisibility(pageKey == "invoices", ImportInvoicesButton, ImportExcelButton, ExportInvoicesButton,
@@ -424,7 +454,7 @@ public partial class MainWindow : Window
         SetVisibility(pageKey == "administration", AdministrationSectionBox,
             TestNotificationButton);
         SetVisibility(pageKey == "settings", TestNotificationButton, ManualUpdateButton,
-            LanguageBox);
+            LanguageBox, DeveloperModeBox);
         ContextActionsPanel.Visibility = all.Any(item => item.Visibility == Visibility.Visible)
             ? Visibility.Visible
             : Visibility.Collapsed;
@@ -436,34 +466,42 @@ public partial class MainWindow : Window
         TopicEditorPanel.Visibility = isTopicEditor ? Visibility.Visible : Visibility.Collapsed;
         RoutineEditorPanel.Visibility = isRoutineEditor ? Visibility.Visible : Visibility.Collapsed;
         TaskEditorPanel.Visibility = isTaskEditor ? Visibility.Visible : Visibility.Collapsed;
-        RecordEditorText.Visibility = isContactEditor || isTopicEditor || isRoutineEditor || isTaskEditor
-            ? Visibility.Collapsed
-            : Visibility.Visible;
+        var showRawEditor = _developerMode && !hasFriendlyEditor;
+        RecordEditorText.Visibility = showRawEditor ? Visibility.Visible : Visibility.Collapsed;
+        FriendlyDetailsText.Visibility = !hasFriendlyEditor && !showRawEditor
+            ? Visibility.Visible : Visibility.Collapsed;
         RecordEditorText.IsReadOnly = !isLiveEditor;
-        IncludeArchivedBox.Visibility = isLiveEditor ? Visibility.Visible : Visibility.Collapsed;
+        IncludeArchivedBox.Visibility = _developerMode && isLiveEditor
+            ? Visibility.Visible : Visibility.Collapsed;
+        var settingsWithoutDeveloperDetails = pageKey == "settings" && !_developerMode;
+        RecordListCard.Visibility = settingsWithoutDeveloperDetails
+            ? Visibility.Collapsed : Visibility.Visible;
+        Grid.SetColumn(EditorCard, settingsWithoutDeveloperDetails ? 0 : 2);
+        Grid.SetColumnSpan(EditorCard, settingsWithoutDeveloperDetails ? 3 : 1);
+        ConfigureDeveloperVisibility();
         EditorHelpText.Text = UiLocalization.IsGerman
             ? isContactEditor
-                ? "Pflichtfelder sind mit * gekennzeichnet. Änderungen werden revisionssicher gespeichert."
+                ? "Pflichtfelder sind mit * gekennzeichnet. Änderungen werden automatisch geschützt."
                 : isTopicEditor
                     ? "Checklistenpunkte können direkt bearbeitet und per Auswahl entfernt werden."
                     : isRoutineEditor
                         ? "Wiederholung, Themen und Erinnerungen werden als validierte Routine gespeichert."
                         : isTaskEditor
                             ? "Aufgabenstatus, Fälligkeit und Checkliste werden live mit dem Backend synchronisiert."
-                            : isLiveEditor
+                            : isLiveEditor && _developerMode
                                 ? "JSON-Felder können bearbeitet werden. Revisionen schützen vor parallelen Änderungen."
-                                : "Diese Ansicht zeigt die vom StructuralOffice-Backend gespeicherten Daten vollständig an."
+                                : "Hier findest du die wichtigsten Informationen auf einen Blick."
             : isContactEditor
-                ? "Required fields are marked with *. Changes are saved with revision protection."
+                ? "Required fields are marked with *. Changes are protected automatically."
                 : isTopicEditor
                     ? "Checklist items can be edited directly and removed by selection."
                     : isRoutineEditor
                         ? "Recurrence, topics, and reminders are saved as a validated routine."
                         : isTaskEditor
                             ? "Task status, due date, and checklist are synchronized live with the backend."
-                            : isLiveEditor
+                            : isLiveEditor && _developerMode
                                 ? "JSON fields can be edited. Revisions protect concurrent changes."
-                                : "This view shows all data stored by the StructuralOffice backend.";
+                                : "Find the most important information here at a glance.";
     }
 
     private static void SetVisibility(bool visible, params UIElement[] elements)
@@ -534,7 +572,7 @@ public partial class MainWindow : Window
                 var check = await _backend.CheckAsync();
                 var data = new JsonObject
                 {
-                    ["application_version"] = "0.7.0-alpha",
+                    ["application_version"] = "0.8.0-alpha",
                     ["backend"] = _backend.DisplayName,
                     ["integration_version"] = check.IntegrationVersion,
                     ["server"] = _session?.ServerAddress.ToString(),
@@ -552,6 +590,11 @@ public partial class MainWindow : Window
             return;
         }
         var section = SelectedTag(AdministrationSectionBox) ?? "roles";
+        if (!_developerMode && section is "audit" or "events")
+        {
+            AdministrationSectionBox.SelectedIndex = 0;
+            section = "roles";
+        }
         _currentDataMode = $"administration-{section}";
         RecordEditorText.IsReadOnly = true;
         SetVisibility(section == "roles", RoleBox, SetRoleButton);
@@ -582,6 +625,13 @@ public partial class MainWindow : Window
         EditorTitleText.Text = UiLocalization.Choose("Select a record", "Datensatz auswählen");
         EditorMetaText.Text = string.Empty;
         ApplyModuleFilter();
+    }
+
+    private void ConfigureDeveloperVisibility()
+    {
+        RevisionColumn.Visibility = _developerMode ? Visibility.Visible : Visibility.Collapsed;
+        AuditSectionItem.Visibility = _developerMode ? Visibility.Visible : Visibility.Collapsed;
+        EventsSectionItem.Visibility = _developerMode ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void ApplyModuleFilter()
@@ -680,20 +730,125 @@ public partial class MainWindow : Window
         return string.Empty;
     }
 
+    private string FormatFriendlyDetails(BackendRecord record)
+    {
+        var data = record.Data;
+        if (_currentPage == "invoices")
+        {
+            var currency = FirstText(data, "currency") is { Length: > 0 } code ? code : "EUR";
+            var outstanding = IntValue(data, "outstanding_cents") / 100m;
+            var gross = IntValue(data, "gross_cents") / 100m;
+            return string.Join(Environment.NewLine,
+                UiLocalization.Choose(
+                    $"Invoice number: {FirstText(data, "invoice_number")}",
+                    $"Rechnungsnummer: {FirstText(data, "invoice_number")}"),
+                UiLocalization.Choose(
+                    $"Recipient: {FirstText(data, "contact")}",
+                    $"Empfänger: {FirstText(data, "contact")}"),
+                UiLocalization.Choose(
+                    $"Invoice date: {FirstText(data, "invoice_date")}",
+                    $"Rechnungsdatum: {FirstText(data, "invoice_date")}"),
+                UiLocalization.Choose(
+                    $"Due date: {FirstText(data, "due_date")}",
+                    $"Zahlungsziel: {FirstText(data, "due_date")}"),
+                UiLocalization.Choose(
+                    $"Gross amount: {gross:N2} {currency}",
+                    $"Bruttobetrag: {gross:N2} {currency}"),
+                UiLocalization.Choose(
+                    $"Outstanding: {outstanding:N2} {currency}",
+                    $"Offen: {outstanding:N2} {currency}"),
+                UiLocalization.Choose(
+                    $"Status: {LocalizedStatus(FirstText(data, "status"))}",
+                    $"Status: {LocalizedStatus(FirstText(data, "status"))}"));
+        }
+        if (_currentPage == "settings")
+        {
+            return string.Join(Environment.NewLine,
+                UiLocalization.Choose(
+                    $"Application version: {FirstText(data, "application_version")}",
+                    $"Anwendungsversion: {FirstText(data, "application_version")}"),
+                UiLocalization.Choose(
+                    $"Integration version: {FirstText(data, "integration_version")}",
+                    $"Integrationsversion: {FirstText(data, "integration_version")}"),
+                UiLocalization.Choose(
+                    $"Connected backend: {FirstText(data, "backend")}",
+                    $"Verbundenes Backend: {FirstText(data, "backend")}"),
+                UiLocalization.Choose(
+                    $"Server: {FirstText(data, "server")}",
+                    $"Server: {FirstText(data, "server")}"),
+                string.Empty,
+                UiLocalization.Choose(
+                    "Use the controls above to choose the language, check for updates, " +
+                    "or enable developer mode.",
+                    "Über die Bedienelemente oben kannst du die Sprache wählen, nach Updates " +
+                    "suchen oder den Entwicklermodus aktivieren."));
+        }
+        var lines = new List<string>();
+        AddFriendlyLine(lines, UiLocalization.Choose("Name", "Name"),
+            FirstText(data, "name", "user_name"));
+        AddFriendlyLine(lines, UiLocalization.Choose("Role", "Rolle"), FirstText(data, "role"));
+        AddFriendlyLine(lines, UiLocalization.Choose("File", "Datei"), FirstText(data, "filename"));
+        AddFriendlyLine(lines, UiLocalization.Choose("Status", "Status"),
+            LocalizedStatus(FirstText(data, "status")));
+        AddFriendlyLine(lines, UiLocalization.Choose("Created", "Erstellt"),
+            FirstText(data, "created_at"));
+        return lines.Count > 0
+            ? string.Join(Environment.NewLine, lines)
+            : UiLocalization.Choose(
+                "No additional details are available.",
+                "Keine weiteren Details verfügbar.");
+    }
+
+    private static string LocalizedStatus(string status) => status switch
+    {
+        "open" => UiLocalization.Text("Open"),
+        "in_progress" => UiLocalization.Text("In progress"),
+        "completed" or "auto_completed" => UiLocalization.Text("Completed"),
+        "skipped" => UiLocalization.Text("Skipped"),
+        "cancelled" => UiLocalization.Text("Cancelled"),
+        _ => status
+    };
+
+    private static int IntValue(JsonObject data, string name)
+    {
+        if (data[name] is JsonValue value && value.TryGetValue<int>(out var integer))
+            return integer;
+        return int.TryParse(data[name]?.ToString(), out integer) ? integer : 0;
+    }
+
+    private static void AddFriendlyLine(List<string> lines, string label, string value)
+    {
+        if (!string.IsNullOrWhiteSpace(value)) lines.Add($"{label}: {value}");
+    }
+
     private async void ModuleDataGrid_OnSelectionChanged(object sender, SelectionChangedEventArgs eventArgs)
     {
-        _selectedRecord = ModuleDataGrid.SelectedItem as DisplayRecord;
-        if (_selectedRecord is null)
+        var nextRecord = ModuleDataGrid.SelectedItem as DisplayRecord;
+        if (nextRecord is null)
         {
+            _selectedRecord = null;
+            EditorPresenceText.Text = string.Empty;
+            await EndCurrentEditSessionCoreAsync();
             return;
         }
+        var nextCollection = _currentDataMode == "tasks" ? "tasks" : _currentPage;
+        if (!string.IsNullOrWhiteSpace(_editRecordId) &&
+            (!string.Equals(_editRecordId, nextRecord.Record.Id, StringComparison.Ordinal) ||
+             !string.Equals(_editCollection, nextCollection, StringComparison.Ordinal)))
+        {
+            await EndCurrentEditSessionCoreAsync();
+        }
+        _selectedRecord = nextRecord;
         EditorTitleText.Text = _selectedRecord.Title;
         var archived = _selectedRecord.Record.ArchivedAt is not null;
-        EditorMetaText.Text = $"ID: {_selectedRecord.Record.Id}  ·  Revision {_selectedRecord.Record.Revision}" +
-                              (archived ? "  ·  archiviert" : string.Empty);
+        EditorMetaText.Text = _developerMode
+            ? $"ID: {_selectedRecord.Record.Id}  ·  Revision {_selectedRecord.Record.Revision}" +
+              (archived ? "  ·  archived" : string.Empty)
+            : archived
+                ? UiLocalization.Choose("Archived", "Archiviert")
+                : _selectedRecord.Detail;
         SaveRecordButton.IsEnabled = !archived;
         ArchiveRecordButton.IsEnabled = !archived;
-        StartEditingButton.IsEnabled = !archived;
         ContactEditorPanel.IsEnabled = !archived;
         TopicEditorPanel.IsEnabled = !archived;
         RecordEditorText.IsReadOnly = archived ||
@@ -708,7 +863,9 @@ public partial class MainWindow : Window
                 if (_selectedRecord?.Record.Id == selectedId)
                 {
                     _selectedRecord = CreateDisplayRecord(task);
-                    EditorMetaText.Text = $"ID: {task.Id}  ·  Revision {task.Revision}";
+                    EditorMetaText.Text = _developerMode
+                        ? $"ID: {task.Id}  ·  Revision {task.Revision}"
+                        : _selectedRecord.Detail;
                     LoadRecordIntoEditor(task);
                 }
             }
@@ -720,6 +877,19 @@ public partial class MainWindow : Window
         if (_currentDataMode == "administration-roles" && _selectedRecord is not null)
         {
             SelectComboValue(RoleBox, FirstText(_selectedRecord.Record.Data, "role"));
+        }
+        var selectedRecord = _selectedRecord;
+        var currentCollection = _currentDataMode == "tasks" ? "tasks" : _currentPage;
+        if (selectedRecord is not null &&
+            string.Equals(selectedRecord.Record.Id, nextRecord.Record.Id, StringComparison.Ordinal) &&
+            string.Equals(currentCollection, nextCollection, StringComparison.Ordinal) &&
+            CanAutomaticallyEdit(selectedRecord.Record))
+        {
+            await BeginAutomaticEditSessionAsync(nextCollection, selectedRecord.Record.Id);
+        }
+        else
+        {
+            EditorPresenceText.Text = string.Empty;
         }
     }
 
@@ -794,11 +964,14 @@ public partial class MainWindow : Window
             return;
         }
         RecordEditorText.Text = record.Data.ToJsonString(PrettyJson);
+        FriendlyDetailsText.Text = FormatFriendlyDetails(record);
     }
 
     private void ClearEditor()
     {
         RecordEditorText.Clear();
+        FriendlyDetailsText.Text = string.Empty;
+        EditorPresenceText.Text = string.Empty;
         ContactNameBox.Clear();
         ContactCustomerNumberBox.Clear();
         ContactEmailBox.Clear();
@@ -895,7 +1068,6 @@ public partial class MainWindow : Window
             "Created when saved", "Wird beim Speichern angelegt");
         SaveRecordButton.IsEnabled = true;
         ArchiveRecordButton.IsEnabled = false;
-        StartEditingButton.IsEnabled = false;
         ContactEditorPanel.IsEnabled = true;
         TopicEditorPanel.IsEnabled = true;
         RecordEditorText.IsReadOnly = false;
@@ -1194,51 +1366,107 @@ public partial class MainWindow : Window
         }, "Datensatz archiviert.");
     }
 
-    private async void StartEditingButton_OnClick(object sender, RoutedEventArgs eventArgs)
+    private bool CanAutomaticallyEdit(BackendRecord record)
     {
-        if (_backend is null || _selectedRecord is null || _currentDataMode != "live")
+        if (record.ArchivedAt is not null) return false;
+        if (_currentDataMode == "tasks") return true;
+        return _currentDataMode == "live" &&
+               (_currentPage is "topics" or "routines" ||
+                (_developerMode && _currentPage == "invoices"));
+    }
+
+    private async Task BeginAutomaticEditSessionAsync(string collection, string recordId)
+    {
+        if (_backend is null) return;
+        try
         {
-            return;
-        }
-        await RunModuleActionAsync(async () =>
-        {
+            if (string.Equals(_editCollection, collection, StringComparison.Ordinal) &&
+                string.Equals(_editRecordId, recordId, StringComparison.Ordinal) &&
+                !string.IsNullOrWhiteSpace(_editSessionId))
+            {
+                await UpdateEditorPresenceAsync(collection, recordId);
+                return;
+            }
             await EndCurrentEditSessionCoreAsync();
-            var result = await _backend.StartEditingAsync(
-                _currentPage, _selectedRecord.Record.Id);
+            var result = await _backend.StartEditingAsync(collection, recordId);
             _editSessionId = result["session_id"]?.GetValue<string>();
-            _editRecordId = _selectedRecord.Record.Id;
-            _editCollection = _currentPage;
-            EditorMetaText.Text += "  ·  Bearbeitung reserviert";
-        }, "Bearbeitungssitzung gestartet.");
+            _editRecordId = recordId;
+            _editCollection = collection;
+            _editPresenceRefreshCancellation = new CancellationTokenSource();
+            await UpdateEditorPresenceAsync(collection, recordId);
+            _ = RefreshEditPresenceAsync(
+                collection, recordId, _editPresenceRefreshCancellation.Token);
+        }
+        catch (Exception exception)
+        {
+            EditorPresenceText.Foreground = new SolidColorBrush(Color.FromRgb(246, 184, 72));
+            EditorPresenceText.Text = UiLocalization.Choose(
+                $"Automatic editing protection is temporarily unavailable: {exception.Message}",
+                $"Der automatische Bearbeitungsschutz ist vorübergehend nicht verfügbar: {exception.Message}");
+        }
     }
 
-    private async void ShowEditorsButton_OnClick(object sender, RoutedEventArgs eventArgs)
+    private async Task RefreshEditPresenceAsync(
+        string collection, string recordId, CancellationToken cancellationToken)
     {
-        if (_backend is null || _selectedRecord is null || _currentDataMode != "live")
+        while (!cancellationToken.IsCancellationRequested)
         {
+            try
+            {
+                await Task.Delay(TimeSpan.FromMinutes(2), cancellationToken);
+                if (_backend is null || string.IsNullOrWhiteSpace(_editSessionId)) return;
+                await _backend.StartEditingAsync(
+                    collection, recordId, _editSessionId, cancellationToken);
+                await UpdateEditorPresenceAsync(collection, recordId);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+            catch
+            {
+                EditorPresenceText.Foreground =
+                    new SolidColorBrush(Color.FromRgb(246, 184, 72));
+                EditorPresenceText.Text = UiLocalization.Choose(
+                    "Editing protection will reconnect automatically.",
+                    "Der Bearbeitungsschutz wird automatisch neu verbunden.");
+            }
+        }
+    }
+
+    private async Task UpdateEditorPresenceAsync(string collection, string recordId)
+    {
+        if (_backend is null) return;
+        var result = await _backend.GetEditorsAsync(collection, recordId);
+        var otherEditors = result["editors"] is JsonArray editors
+            ? editors.OfType<JsonObject>()
+                .Where(item => !string.Equals(
+                    FirstText(item, "session_id"), _editSessionId, StringComparison.Ordinal))
+                .Select(item => FirstText(item, "user_name"))
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .Distinct(StringComparer.CurrentCultureIgnoreCase)
+                .ToList()
+            : [];
+        if (otherEditors.Count == 0)
+        {
+            EditorPresenceText.Foreground = new SolidColorBrush(Color.FromRgb(99, 214, 155));
+            EditorPresenceText.Text = UiLocalization.Choose(
+                "Editing protection active · Your changes are protected automatically",
+                "Bearbeitungsschutz aktiv · Deine Änderungen werden automatisch geschützt");
             return;
         }
-        await RunModuleActionAsync(async () =>
-        {
-            var result = await _backend.GetEditorsAsync(_currentPage, _selectedRecord.Record.Id);
-            var editors = result["editors"] is JsonArray items
-                ? items.OfType<JsonObject>().Select(item =>
-                    $"• {FirstText(item, "user_name")} – bis {FormatTimestamp(FirstText(item, "expires_at"))}")
-                    .ToList()
-                : [];
-            var message = editors.Count == 0
-                ? "Dieser Datensatz wird aktuell von niemandem bearbeitet."
-                : string.Join(Environment.NewLine, editors);
-            MessageBox.Show(message, "Aktive Bearbeiter",
-                MessageBoxButton.OK, MessageBoxImage.Information);
-        });
+        EditorPresenceText.Foreground = new SolidColorBrush(Color.FromRgb(246, 184, 72));
+        EditorPresenceText.Text = UiLocalization.Choose(
+            $"Also editing: {string.Join(", ", otherEditors)}",
+            $"Bearbeitet ebenfalls: {string.Join(", ", otherEditors)}");
     }
-
-    private async void EndEditingButton_OnClick(object sender, RoutedEventArgs eventArgs) =>
-        await RunModuleActionAsync(EndCurrentEditSessionCoreAsync, "Bearbeitungssitzung beendet.");
 
     private async Task EndCurrentEditSessionCoreAsync()
     {
+        _editPresenceRefreshCancellation?.Cancel();
+        _editPresenceRefreshCancellation?.Dispose();
+        _editPresenceRefreshCancellation = null;
+        EditorPresenceText.Text = string.Empty;
         if (_backend is null || string.IsNullOrWhiteSpace(_editSessionId) ||
             string.IsNullOrWhiteSpace(_editCollection) || string.IsNullOrWhiteSpace(_editRecordId))
         {
@@ -1821,11 +2049,6 @@ public partial class MainWindow : Window
         FirstText(record.Record.Data, "filename") is { Length: > 0 } filename
             ? filename
             : record.Record.Id;
-
-    private static string FormatTimestamp(string value) =>
-        DateTimeOffset.TryParse(value, out var timestamp)
-            ? timestamp.ToLocalTime().ToString("dd.MM.yyyy HH:mm")
-            : value;
 
     private void UpdateWorkspaceStatus(
         HomeAssistantSession session,

@@ -193,7 +193,7 @@ public sealed class HomeAssistantBackend : IStructuralOfficeDataBackend, IDispos
             $"editing/{Escape(collection)}/{Escape(id)}",
             new JsonObject
             {
-                ["client_id"] = "StructuralOffice-Windows-0.4",
+                ["client_id"] = "StructuralOffice-Windows",
                 ["ttl_seconds"] = 300,
                 ["session_id"] = sessionId
             },

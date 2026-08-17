@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+## [0.8.0-alpha] - 2026-08-17
+
+### Added
+
+- Persistent developer mode for raw record data, revisions, audit entries, and events.
+- Automatic edit-presence protection with passive conflict information while records
+  are being changed.
+
+### Changed
+
+- Reworked record details to show task-oriented, human-readable information by default.
+- Removed the manual start editing, end editing, and editors controls.
+
 ## [0.7.0-alpha] - 2026-08-17
 
 ### Added
