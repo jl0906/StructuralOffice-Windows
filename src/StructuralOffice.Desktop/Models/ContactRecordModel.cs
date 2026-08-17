@@ -1,6 +1,7 @@
 using System.IO;
 using System.Net.Mail;
 using System.Text.Json.Nodes;
+using StructuralOffice.Desktop.Services;
 
 namespace StructuralOffice.Desktop.Models;
 
@@ -48,7 +49,8 @@ public sealed class ContactRecordModel
     {
         if (string.IsNullOrWhiteSpace(Name))
         {
-            throw new InvalidDataException("Bitte einen Namen für den Kontakt eingeben.");
+            throw new InvalidDataException(UiLocalization.Choose(
+                "Enter a contact name.", "Bitte einen Namen für den Kontakt eingeben."));
         }
         if (!string.IsNullOrWhiteSpace(Email))
         {
@@ -58,7 +60,9 @@ public sealed class ContactRecordModel
             }
             catch (FormatException exception)
             {
-                throw new InvalidDataException("Bitte eine gültige E-Mail-Adresse eingeben.", exception);
+                throw new InvalidDataException(UiLocalization.Choose(
+                    "Enter a valid email address.",
+                    "Bitte eine gültige E-Mail-Adresse eingeben."), exception);
             }
         }
     }

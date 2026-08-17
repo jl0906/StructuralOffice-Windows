@@ -189,7 +189,9 @@ public sealed class HomeAssistantAuthService : IDisposable
         var parameters = ParseQuery(callbackUri.Query);
         var successful = parameters.ContainsKey("code") && !parameters.ContainsKey("error");
         var html = successful
-            ? "<html><body><h2>StructuralOffice</h2><p>Login erfolgreich. Dieses Fenster kann geschlossen werden.</p></body></html>"
+            ? UiLocalization.Choose(
+                "<html><body><h2>StructuralOffice</h2><p>Sign-in succeeded. You can close this window.</p></body></html>",
+                "<html><body><h2>StructuralOffice</h2><p>Login erfolgreich. Dieses Fenster kann geschlossen werden.</p></body></html>")
             : "<html><body><h2>StructuralOffice</h2><p>Login wurde abgebrochen.</p></body></html>";
         var body = Encoding.UTF8.GetBytes(html);
         var header = Encoding.ASCII.GetBytes(

@@ -2,7 +2,7 @@
 param([switch]$Quiet)
 
 $ErrorActionPreference = 'Stop'
-$applicationVersion = '0.6.0-alpha'
+$applicationVersion = '0.7.0-alpha'
 $nestedPayload = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot 'app'))
 $packageRoot = if (Test-Path -LiteralPath (Join-Path $nestedPayload 'StructuralOffice.exe')) {
     $nestedPayload
@@ -13,7 +13,7 @@ $payload = Join-Path $packageRoot 'StructuralOffice.exe'
 $defaultInstallRoot = Join-Path $env:LOCALAPPDATA 'Programs\StructuralOffice'
 $startMenu = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs'
 $startShortcut = Join-Path $startMenu 'StructuralOffice.lnk'
-$uninstallShortcut = Join-Path $startMenu 'StructuralOffice deinstallieren.lnk'
+$uninstallShortcut = Join-Path $startMenu 'Uninstall StructuralOffice.lnk'
 $desktopShortcutPath = Join-Path ([Environment]::GetFolderPath('Desktop')) 'StructuralOffice.lnk'
 $uninstallKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\StructuralOffice'
 
@@ -33,16 +33,47 @@ function Get-ExistingInstallation {
     return $null
 }
 
-function Show-ExistingInstallation([string]$installRoot) {
-    Add-Type -AssemblyName System.Windows.Forms
+function Get-ExistingInstallationChoice([string]$installRoot) {
+    Add-Type -AssemblyName System.Windows.Forms | Out-Null
     $choice = [System.Windows.Forms.MessageBox]::Show(
-        "StructuralOffice ist bereits installiert.`r`n`r`n$installRoot`r`n`r`nSoll das installierte Programm geoeffnet werden?",
+        "StructuralOffice is already installed.`r`n`r`n$installRoot`r`n`r`n" +
+        "Yes: Update the existing installation`r`n" +
+        "No: Open the installed application`r`n" +
+        "Cancel: Exit setup`r`n`r`n" +
+        "StructuralOffice will close automatically during the update.",
         'StructuralOffice Setup',
-        [System.Windows.Forms.MessageBoxButtons]::YesNo,
+        [System.Windows.Forms.MessageBoxButtons]::YesNoCancel,
         [System.Windows.Forms.MessageBoxIcon]::Information
     )
     if ($choice -eq [System.Windows.Forms.DialogResult]::Yes) {
-        Start-Process -FilePath (Join-Path $installRoot 'StructuralOffice.exe')
+        return 'update'
+    }
+    if ($choice -eq [System.Windows.Forms.DialogResult]::No) {
+        return 'open'
+    }
+    return 'cancel'
+}
+
+function Stop-InstalledApplication([string]$installRoot) {
+    $target = [System.IO.Path]::GetFullPath((Join-Path $installRoot 'StructuralOffice.exe'))
+    $running = @(Get-Process -Name 'StructuralOffice' -ErrorAction SilentlyContinue |
+        Where-Object {
+            try {
+                $_.Path -and [System.IO.Path]::GetFullPath($_.Path) -eq $target
+            } catch {
+                $false
+            }
+        })
+    foreach ($process in $running) {
+        if ($process.CloseMainWindow()) {
+            try {
+                Wait-Process -Id $process.Id -Timeout 5 -ErrorAction Stop
+                continue
+            } catch {
+                # Fall back to stopping the process if it did not close in time.
+            }
+        }
+        Stop-Process -Id $process.Id -Force -ErrorAction Stop
     }
 }
 
@@ -61,14 +92,14 @@ function Show-InstallDialog([string]$defaultPath) {
     $form.Icon = [System.Drawing.Icon]::ExtractAssociatedIcon($payload)
 
     $title = New-Object System.Windows.Forms.Label
-    $title.Text = 'StructuralOffice 0.6.0-alpha installieren'
+    $title.Text = 'Install StructuralOffice 0.7.0-alpha'
     $title.Font = New-Object System.Drawing.Font('Segoe UI Semibold', 15)
     $title.AutoSize = $true
     $title.Location = New-Object System.Drawing.Point(24, 20)
     $form.Controls.Add($title)
 
     $pathLabel = New-Object System.Windows.Forms.Label
-    $pathLabel.Text = 'Installationsordner'
+    $pathLabel.Text = 'Installation folder'
     $pathLabel.AutoSize = $true
     $pathLabel.Location = New-Object System.Drawing.Point(26, 72)
     $form.Controls.Add($pathLabel)
@@ -80,12 +111,12 @@ function Show-InstallDialog([string]$defaultPath) {
     $form.Controls.Add($pathBox)
 
     $browseButton = New-Object System.Windows.Forms.Button
-    $browseButton.Text = 'Durchsuchen...'
+    $browseButton.Text = 'Browse...'
     $browseButton.Location = New-Object System.Drawing.Point(504, 96)
     $browseButton.Size = New-Object System.Drawing.Size(95, 31)
     $browseButton.Add_Click({
         $browser = New-Object System.Windows.Forms.FolderBrowserDialog
-        $browser.Description = 'Installationsordner fuer StructuralOffice auswaehlen'
+        $browser.Description = 'Select the StructuralOffice installation folder'
         $browser.SelectedPath = $pathBox.Text
         if ($browser.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
             $pathBox.Text = $browser.SelectedPath
@@ -94,14 +125,14 @@ function Show-InstallDialog([string]$defaultPath) {
     $form.Controls.Add($browseButton)
 
     $desktopBox = New-Object System.Windows.Forms.CheckBox
-    $desktopBox.Text = 'Desktopverknuepfung erstellen'
+    $desktopBox.Text = 'Create desktop shortcut'
     $desktopBox.Checked = $true
     $desktopBox.AutoSize = $true
     $desktopBox.Location = New-Object System.Drawing.Point(29, 145)
     $form.Controls.Add($desktopBox)
 
     $installButton = New-Object System.Windows.Forms.Button
-    $installButton.Text = 'Installieren'
+    $installButton.Text = 'Install'
     $installButton.DialogResult = [System.Windows.Forms.DialogResult]::OK
     $installButton.Location = New-Object System.Drawing.Point(375, 195)
     $installButton.Size = New-Object System.Drawing.Size(105, 34)
@@ -109,7 +140,7 @@ function Show-InstallDialog([string]$defaultPath) {
     $form.Controls.Add($installButton)
 
     $cancelButton = New-Object System.Windows.Forms.Button
-    $cancelButton.Text = 'Abbrechen'
+    $cancelButton.Text = 'Cancel'
     $cancelButton.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
     $cancelButton.Location = New-Object System.Drawing.Point(494, 195)
     $cancelButton.Size = New-Object System.Drawing.Size(105, 34)
@@ -127,12 +158,12 @@ function Show-InstallDialog([string]$defaultPath) {
 
 function Resolve-SafeInstallRoot([string]$value) {
     if ([string]::IsNullOrWhiteSpace($value)) {
-        throw 'Bitte einen Installationsordner auswaehlen.'
+        throw 'Select an installation folder.'
     }
     $resolved = [System.IO.Path]::GetFullPath([Environment]::ExpandEnvironmentVariables($value))
     $volumeRoot = [System.IO.Path]::GetPathRoot($resolved)
     if ($resolved.TrimEnd('\') -eq $volumeRoot.TrimEnd('\')) {
-        throw 'Ein Laufwerksstamm darf nicht als Installationsordner verwendet werden.'
+        throw 'A drive root cannot be used as the installation folder.'
     }
     return $resolved
 }
@@ -151,14 +182,23 @@ function Copy-ApplicationWithRetry([string]$source, [string]$destination) {
 
 $existingInstallRoot = Get-ExistingInstallation
 if ($existingInstallRoot -and -not $Quiet) {
-    Show-ExistingInstallation $existingInstallRoot
-    exit 0
+    $existingChoice = Get-ExistingInstallationChoice $existingInstallRoot
+    if ($existingChoice -eq 'open') {
+        Start-Process -FilePath (Join-Path $existingInstallRoot 'StructuralOffice.exe')
+        exit 0
+    }
+    if ($existingChoice -ne 'update') {
+        exit 0
+    }
 }
 
 if ($Quiet) {
     if (-not $existingInstallRoot) {
         throw 'A quiet update requires an existing StructuralOffice installation.'
     }
+    $installRoot = $existingInstallRoot
+    $createDesktopShortcut = Test-Path -LiteralPath $desktopShortcutPath
+} elseif ($existingInstallRoot) {
     $installRoot = $existingInstallRoot
     $createDesktopShortcut = Test-Path -LiteralPath $desktopShortcutPath
 } else {
@@ -168,6 +208,9 @@ if ($Quiet) {
     $createDesktopShortcut = $selection.DesktopShortcut
 }
 
+if ($existingInstallRoot) {
+    Stop-InstalledApplication $existingInstallRoot
+}
 New-Item -ItemType Directory -Path $installRoot -Force | Out-Null
 Copy-ApplicationWithRetry $payload (Join-Path $installRoot 'StructuralOffice.exe')
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Uninstall.ps1') -Destination $installRoot -Force
@@ -193,7 +236,7 @@ $uninstallLink = $shell.CreateShortcut($uninstallShortcut)
 $uninstallLink.TargetPath = 'powershell.exe'
 $uninstallLink.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$(Join-Path $installRoot 'Uninstall.ps1')`""
 $uninstallLink.WorkingDirectory = $installRoot
-$uninstallLink.Description = 'StructuralOffice deinstallieren'
+$uninstallLink.Description = 'Uninstall StructuralOffice'
 $uninstallLink.Save()
 
 New-Item -Path $uninstallKey -Force | Out-Null

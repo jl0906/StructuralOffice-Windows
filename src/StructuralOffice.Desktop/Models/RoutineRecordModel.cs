@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
 using System.Text.Json.Nodes;
+using StructuralOffice.Desktop.Services;
 
 namespace StructuralOffice.Desktop.Models;
 
@@ -93,30 +94,48 @@ public sealed class RoutineRecordModel
     private void Validate()
     {
         if (string.IsNullOrWhiteSpace(Name))
-            throw new InvalidDataException("Bitte einen Namen für die Routine eingeben.");
+            throw new InvalidDataException(UiLocalization.Choose(
+                "Enter a routine name.", "Bitte einen Namen für die Routine eingeben."));
         if (TopicIds.Count == 0)
-            throw new InvalidDataException("Bitte mindestens ein Thema auswählen.");
+            throw new InvalidDataException(UiLocalization.Choose(
+                "Select at least one topic.", "Bitte mindestens ein Thema auswählen."));
         if (Frequency is not ("once" or "daily" or "weekly" or "monthly" or "yearly"))
-            throw new InvalidDataException("Die Wiederholungsart ist ungültig.");
+            throw new InvalidDataException(UiLocalization.Choose(
+                "The recurrence type is invalid.", "Die Wiederholungsart ist ungültig."));
         if (Interval is < 1 or > 100)
-            throw new InvalidDataException("Das Intervall muss zwischen 1 und 100 liegen.");
+            throw new InvalidDataException(UiLocalization.Choose(
+                "The interval must be between 1 and 100.",
+                "Das Intervall muss zwischen 1 und 100 liegen."));
         if (!DateOnly.TryParseExact(StartDate, "yyyy-MM-dd", CultureInfo.InvariantCulture,
                 DateTimeStyles.None, out _))
-            throw new InvalidDataException("Das Startdatum muss das Format JJJJ-MM-TT verwenden.");
+            throw new InvalidDataException(UiLocalization.Choose(
+                "The start date must use YYYY-MM-DD.",
+                "Das Startdatum muss das Format JJJJ-MM-TT verwenden."));
         if (!string.IsNullOrWhiteSpace(EndDate) && !DateOnly.TryParseExact(
                 EndDate, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out _))
-            throw new InvalidDataException("Das Enddatum muss das Format JJJJ-MM-TT verwenden.");
+            throw new InvalidDataException(UiLocalization.Choose(
+                "The end date must use YYYY-MM-DD.",
+                "Das Enddatum muss das Format JJJJ-MM-TT verwenden."));
         if (!TimeOnly.TryParseExact(DueTime, "HH:mm", CultureInfo.InvariantCulture,
                 DateTimeStyles.None, out _))
-            throw new InvalidDataException("Die Uhrzeit muss das Format HH:MM verwenden.");
+            throw new InvalidDataException(UiLocalization.Choose(
+                "The time must use HH:MM.", "Die Uhrzeit muss das Format HH:MM verwenden."));
         if (Weekdays.Any(value => value is < 0 or > 6))
-            throw new InvalidDataException("Wochentage müssen zwischen 0 und 6 liegen.");
+            throw new InvalidDataException(UiLocalization.Choose(
+                "Weekdays must be between 0 and 6.",
+                "Wochentage müssen zwischen 0 und 6 liegen."));
         if (MonthDays.Any(value => value is < 1 or > 31))
-            throw new InvalidDataException("Monatstage müssen zwischen 1 und 31 liegen.");
+            throw new InvalidDataException(UiLocalization.Choose(
+                "Month days must be between 1 and 31.",
+                "Monatstage müssen zwischen 1 und 31 liegen."));
         if (Months.Any(value => value is < 1 or > 12))
-            throw new InvalidDataException("Monate müssen zwischen 1 und 12 liegen.");
+            throw new InvalidDataException(UiLocalization.Choose(
+                "Months must be between 1 and 12.",
+                "Monate müssen zwischen 1 und 12 liegen."));
         if (ReminderOffsets.Any(value => value is < -365 or > 365))
-            throw new InvalidDataException("Erinnerungen müssen zwischen -365 und 365 Tagen liegen.");
+            throw new InvalidDataException(UiLocalization.Choose(
+                "Reminders must be between -365 and 365 days.",
+                "Erinnerungen müssen zwischen -365 und 365 Tagen liegen."));
     }
 
     private static JsonArray Array(IEnumerable<string> values)

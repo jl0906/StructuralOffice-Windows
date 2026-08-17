@@ -86,14 +86,14 @@ public sealed class HomeAssistantBackend : IStructuralOfficeDataBackend, IDispos
                 case HttpStatusCode.Forbidden:
                     checks.Add(new CheckItem(
                         "StructuralOffice", CheckState.Error,
-                        "Das Home-Assistant-Konto hat keinen Zugriff auf StructuralOffice."));
+                        "The Home Assistant account does not have access to StructuralOffice."));
                     break;
                 default:
                     if (!integrationResponse.IsSuccessStatusCode)
                     {
                         checks.Add(new CheckItem(
                             "StructuralOffice", CheckState.Error,
-                            $"Prüfung fehlgeschlagen: HTTP {(int)integrationResponse.StatusCode}."));
+                            $"Check failed: HTTP {(int)integrationResponse.StatusCode}."));
                         break;
                     }
 
@@ -110,7 +110,7 @@ public sealed class HomeAssistantBackend : IStructuralOfficeDataBackend, IDispos
         {
             checks.Add(new CheckItem(
                 "Home Assistant", CheckState.Error,
-                "Zeitüberschreitung. Bitte Adresse und Netzwerk prüfen."));
+                "The request timed out. Check the address and network."));
         }
         catch (HttpRequestException exception)
         {
@@ -440,7 +440,7 @@ public sealed class HomeAssistantBackend : IStructuralOfficeDataBackend, IDispos
         var authentication = await ReceiveSocketJsonAsync(socket, cancellationToken);
         if (authentication["type"]?.GetValue<string>() != "auth_ok")
         {
-            throw new BackendApiException("Home Assistant WebSocket-Anmeldung fehlgeschlagen.", 401);
+            throw new BackendApiException("Home Assistant WebSocket authentication failed.", 401);
         }
         await SendSocketJsonAsync(socket, new JsonObject
         {
@@ -545,7 +545,7 @@ public sealed class HomeAssistantBackend : IStructuralOfficeDataBackend, IDispos
         var authentication = await ReceiveSocketJsonAsync(socket, cancellationToken);
         if (authentication["type"]?.GetValue<string>() != "auth_ok")
         {
-            throw new BackendApiException("Home Assistant WebSocket-Anmeldung fehlgeschlagen.", 401);
+            throw new BackendApiException("Home Assistant WebSocket authentication failed.", 401);
         }
 
         var command = values?.DeepClone().AsObject() ?? new JsonObject();
@@ -566,7 +566,7 @@ public sealed class HomeAssistantBackend : IStructuralOfficeDataBackend, IDispos
             }
             var error = response["error"] as JsonObject;
             throw new BackendApiException(
-                error?["message"]?.GetValue<string>() ?? "Backendaktion fehlgeschlagen.",
+                error?["message"]?.GetValue<string>() ?? "Backend action failed.",
                 400,
                 error?["code"]?.GetValue<string>());
         }
@@ -593,12 +593,12 @@ public sealed class HomeAssistantBackend : IStructuralOfficeDataBackend, IDispos
             result = await socket.ReceiveAsync(buffer, cancellationToken);
             if (result.MessageType == WebSocketMessageType.Close)
             {
-                throw new BackendApiException("Die Home-Assistant-Verbindung wurde beendet.", 503);
+                throw new BackendApiException("The Home Assistant connection was closed.", 503);
             }
             stream.Write(buffer, 0, result.Count);
         } while (!result.EndOfMessage);
         return JsonNode.Parse(stream.ToArray())?.AsObject()
-               ?? throw new BackendApiException("Ungültige WebSocket-Antwort.", 502);
+               ?? throw new BackendApiException("Invalid WebSocket response.", 502);
     }
 
     private static async Task EnsureSuccessAsync(
@@ -622,7 +622,7 @@ public sealed class HomeAssistantBackend : IStructuralOfficeDataBackend, IDispos
             current = ParseRecord(currentObject, currentObject["data"] is JsonObject);
         }
         return new BackendApiException(
-            root["error"]?.GetValue<string>() ?? $"Backendfehler HTTP {statusCode}.",
+            root["error"]?.GetValue<string>() ?? $"Backend error HTTP {statusCode}.",
             statusCode,
             root["code"]?.GetValue<string>(),
             current);
@@ -682,14 +682,14 @@ public sealed class HomeAssistantBackend : IStructuralOfficeDataBackend, IDispos
     {
         var filename = root["filename"]?.GetValue<string>() ?? "StructuralOffice-download";
         var encoded = root["content"]?.GetValue<string>()
-                      ?? throw new BackendApiException("Downloadinhalt fehlt.", 502);
+                      ?? throw new BackendApiException("Download content is missing.", 502);
         try
         {
             return new BackendDownload(filename, Convert.FromBase64String(encoded));
         }
         catch (FormatException exception)
         {
-            throw new BackendApiException("Downloadinhalt ist ungültig.", 502, innerException: exception);
+            throw new BackendApiException("Download content is invalid.", 502, innerException: exception);
         }
     }
 
@@ -719,9 +719,9 @@ public sealed class HomeAssistantBackend : IStructuralOfficeDataBackend, IDispos
     {
         if (exception.InnerException is System.Security.Authentication.AuthenticationException)
         {
-            return "Die TLS-Zertifikatsprüfung ist fehlgeschlagen. Zertifikat und Adresse prüfen.";
+            return "TLS certificate validation failed. Check the certificate and address.";
         }
 
-        return "Server nicht erreichbar. Bitte Adresse, Netzwerk und Port prüfen.";
+        return "The server is unreachable. Check the address, network, and port.";
     }
 }

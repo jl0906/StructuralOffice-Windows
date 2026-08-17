@@ -70,7 +70,7 @@ AdminQuietInstCmd=%AdminQuietInstCmd%
 UserQuietInstCmd=%UserQuietInstCmd%
 SourceFiles=SourceFiles
 [Strings]
-FinishMessage=StructuralOffice wurde installiert und ist im Startmenue verfuegbar.
+FinishMessage=StructuralOffice was installed and is available from the Start menu.
 TargetName=$installer
 FriendlyName=StructuralOffice Setup
 AppLaunched=cmd.exe /d /c Install.cmd

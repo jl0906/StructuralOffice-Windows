@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Text.Json.Nodes;
+using StructuralOffice.Desktop.Services;
 
 namespace StructuralOffice.Desktop.Models;
 
@@ -80,29 +81,37 @@ public sealed class TopicRecordModel
     {
         if (string.IsNullOrWhiteSpace(Name))
         {
-            throw new InvalidDataException("Bitte einen Namen für das Thema eingeben.");
+            throw new InvalidDataException(UiLocalization.Choose(
+                "Enter a topic name.", "Bitte einen Namen für das Thema eingeben."));
         }
         if (Priority is not ("low" or "normal" or "high" or "critical"))
         {
-            throw new InvalidDataException("Die ausgewählte Priorität ist ungültig.");
+            throw new InvalidDataException(UiLocalization.Choose(
+                "The selected priority is invalid.", "Die ausgewählte Priorität ist ungültig."));
         }
         if (EstimatedMinutes is < 0 or > 100_000)
         {
-            throw new InvalidDataException("Die Bearbeitungsdauer muss zwischen 0 und 100.000 Minuten liegen.");
+            throw new InvalidDataException(UiLocalization.Choose(
+                "The duration must be between 0 and 100,000 minutes.",
+                "Die Bearbeitungsdauer muss zwischen 0 und 100.000 Minuten liegen."));
         }
         if (Steps.Any(step => string.IsNullOrWhiteSpace(step.Title)))
         {
-            throw new InvalidDataException("Jeder Checklistenpunkt benötigt einen Titel.");
+            throw new InvalidDataException(UiLocalization.Choose(
+                "Every checklist item requires a title.",
+                "Jeder Checklistenpunkt benötigt einen Titel."));
         }
         if (Steps.Any(step => step.EstimatedMinutes is < 0 or > 100_000))
         {
-            throw new InvalidDataException(
-                "Die Dauer eines Checklistenpunkts muss zwischen 0 und 100.000 Minuten liegen.");
+            throw new InvalidDataException(UiLocalization.Choose(
+                "A checklist item duration must be between 0 and 100,000 minutes.",
+                "Die Dauer eines Checklistenpunkts muss zwischen 0 und 100.000 Minuten liegen."));
         }
         var ids = Steps.Select(step => step.Id).Where(id => !string.IsNullOrWhiteSpace(id)).ToList();
         if (ids.Count != ids.Distinct(StringComparer.Ordinal).Count())
         {
-            throw new InvalidDataException("Checklisten-IDs müssen eindeutig sein.");
+            throw new InvalidDataException(UiLocalization.Choose(
+                "Checklist IDs must be unique.", "Checklisten-IDs müssen eindeutig sein."));
         }
     }
 

@@ -33,6 +33,7 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<TaskChecklistItemModel> _taskChecklist = [];
     private CancellationTokenSource? _liveUpdatesCancellation;
     private bool _newManualTask;
+    private bool _languageReady;
 
     private static readonly JsonSerializerOptions PrettyJson = new() { WriteIndented = true };
 
@@ -40,40 +41,40 @@ public partial class MainWindow : Window
         new Dictionary<string, WorkspacePage>(StringComparer.OrdinalIgnoreCase)
         {
             ["contacts"] = new(
-                "Kontakte",
-                "Kunden, Firmen und Ansprechpartner zentral verwalten.",
+                "Contacts",
+                "Manage customers, companies, and contacts in one place.",
                 "K"),
             ["topics"] = new(
-                "Themen",
-                "Wiederkehrende Inhalte und Zuständigkeiten strukturieren.",
+                "Topics",
+                "Structure recurring content and responsibilities.",
                 "T"),
             ["routines"] = new(
-                "Routinen",
-                "Regelmäßige Abläufe planen und nachvollziehbar ausführen.",
+                "Routines",
+                "Plan recurring workflows and execute them consistently.",
                 "R"),
             ["tasks"] = new(
-                "Aufgaben",
-                "Offene Vorgänge, Fälligkeiten und Bearbeitungsstände bündeln.",
+                "Tasks",
+                "Keep open work, due dates, and progress together.",
                 "A"),
             ["invoices"] = new(
-                "Rechnungen",
-                "Rechnungen, Zahlungsziele und Status übersichtlich verfolgen.",
+                "Invoices",
+                "Track invoices, payment terms, and statuses.",
                 "R"),
             ["documents"] = new(
-                "Dokumente",
-                "Dokumente zu Kontakten und Vorgängen geordnet bereitstellen.",
+                "Documents",
+                "Organize documents for contacts and workflows.",
                 "D"),
             ["accounting"] = new(
-                "Mahnwesen",
-                "Automatische Mahnläufe, Rechnungsgruppen und Eskalationsregeln verwalten.",
+                "Dunning",
+                "Manage automated reminders, invoice groups, and escalation rules.",
                 "M"),
             ["settings"] = new(
-                "Einstellungen",
-                "Verbindung, Updates und den zukünftigen Datenmodus konfigurieren.",
+                "Settings",
+                "Configure the connection, language, updates, and data mode.",
                 "E"),
             ["administration"] = new(
                 "Administration",
-                "Benutzerrollen, Backups und revisionssichere Änderungsprotokolle verwalten.",
+                "Manage user roles, backups, and revision-safe audit logs.",
                 "A")
         };
 
@@ -93,6 +94,12 @@ public partial class MainWindow : Window
 
     private async void OnLoaded(object sender, RoutedEventArgs eventArgs)
     {
+        var language = await _settingsStore.LoadLanguageAsync();
+        UiLocalization.SetLanguage(language);
+        SelectComboTag(LanguageBox, language);
+        UiLocalization.Apply(this);
+        _languageReady = true;
+
         var connection = await _settingsStore.LoadConnectionAsync();
         if (!string.IsNullOrWhiteSpace(connection.ServerUrl))
         {
@@ -106,7 +113,8 @@ public partial class MainWindow : Window
             var refreshToken = _credentialStore.ReadRefreshToken();
             if (!string.IsNullOrWhiteSpace(refreshToken))
             {
-                SetBusy(true, "Automatische Anmeldung …");
+                SetBusy(true, UiLocalization.Choose(
+                    "Signing in automatically …", "Automatische Anmeldung …"));
                 try
                 {
                     using var auth = new HomeAssistantAuthService();
@@ -120,8 +128,9 @@ public partial class MainWindow : Window
                     _credentialStore.DeleteRefreshToken();
                     await _settingsStore.ClearRememberedLoginAsync();
                     RememberLoginBox.IsChecked = false;
-                    ShowValidation(
-                        $"Die gespeicherte Anmeldung ist nicht mehr gültig: {exception.Message}");
+                    ShowValidation(UiLocalization.Choose(
+                        $"The saved sign-in is no longer valid: {exception.Message}",
+                        $"Die gespeicherte Anmeldung ist nicht mehr gültig: {exception.Message}"));
                 }
                 finally
                 {
@@ -141,7 +150,8 @@ public partial class MainWindow : Window
             return;
         }
 
-        SetBusy(true, "Browser-Anmeldung wird geöffnet …");
+        SetBusy(true, UiLocalization.Choose(
+            "Opening browser sign-in …", "Browser-Anmeldung wird geöffnet …"));
         try
         {
             using var auth = new HomeAssistantAuthService();
@@ -165,11 +175,15 @@ public partial class MainWindow : Window
         }
         catch (OperationCanceledException)
         {
-            ShowValidation("Die Anmeldung wurde abgebrochen oder hat zu lange gedauert.");
+            ShowValidation(UiLocalization.Choose(
+                "Sign-in was cancelled or timed out.",
+                "Die Anmeldung wurde abgebrochen oder hat zu lange gedauert."));
         }
         catch (Exception exception)
         {
-            ShowValidation($"Anmeldung fehlgeschlagen: {exception.Message}");
+            ShowValidation(UiLocalization.Choose(
+                $"Sign-in failed: {exception.Message}",
+                $"Anmeldung fehlgeschlagen: {exception.Message}"));
         }
         finally
         {
@@ -197,7 +211,9 @@ public partial class MainWindow : Window
         if (!Uri.TryCreate(ServerUrlBox.Text.Trim(), UriKind.Absolute, out serverUri) ||
             serverUri.Scheme is not ("http" or "https"))
         {
-            ShowValidation("Bitte eine vollständige HTTP- oder HTTPS-Adresse eingeben.");
+            ShowValidation(UiLocalization.Choose(
+                "Enter a complete HTTP or HTTPS address.",
+                "Bitte eine vollständige HTTP- oder HTTPS-Adresse eingeben."));
             return false;
         }
         return true;
@@ -239,7 +255,8 @@ public partial class MainWindow : Window
     private void ShowValidation(string detail)
     {
         ShowResult(new IntegrationCheckResult(
-            [new CheckItem("Verbindung", CheckState.Error, detail)],
+            [new CheckItem(UiLocalization.Choose("Connection", "Verbindung"),
+                CheckState.Error, detail)],
             null,
             DateTimeOffset.Now));
     }
@@ -247,15 +264,17 @@ public partial class MainWindow : Window
     private void ShowResult(IntegrationCheckResult result)
     {
         ResultItems.ItemsSource = result.Checks.Select(item => new CheckItemView(
-            item.Name,
-            item.Detail,
+            UiLocalization.Text(item.Name),
+            UiLocalization.Text(item.Detail),
             item.State switch
             {
                 CheckState.Success => new SolidColorBrush(Color.FromRgb(63, 199, 132)),
                 CheckState.Warning => new SolidColorBrush(Color.FromRgb(246, 184, 72)),
                 _ => new SolidColorBrush(Color.FromRgb(242, 95, 92))
             })).ToList();
-        CheckedAtText.Text = $"Geprüft am {result.CheckedAt:dd.MM.yyyy 'um' HH:mm:ss}";
+        CheckedAtText.Text = UiLocalization.IsGerman
+            ? $"Geprüft am {result.CheckedAt:dd.MM.yyyy 'um' HH:mm:ss}"
+            : $"Checked on {result.CheckedAt:yyyy-MM-dd 'at' HH:mm:ss}";
         ResultPanel.Visibility = Visibility.Visible;
     }
 
@@ -292,6 +311,20 @@ public partial class MainWindow : Window
         }
     }
 
+    private async void LanguageBox_OnSelectionChanged(
+        object sender, SelectionChangedEventArgs eventArgs)
+    {
+        if (!_languageReady) return;
+        var language = SelectedTag(LanguageBox) == "de" ? "de" : "en";
+        UiLocalization.SetLanguage(language);
+        UiLocalization.Apply(this);
+        await _settingsStore.SaveLanguageAsync(language);
+        if (_authenticated)
+        {
+            await ShowPageAsync(_currentPage);
+        }
+    }
+
     private void ShowPage(string pageKey)
     {
         _ = ShowPageAsync(pageKey);
@@ -306,13 +339,27 @@ public partial class MainWindow : Window
 
         if (isOverview)
         {
-            PageTitleText.Text = "Übersicht";
-            PageSubtitleText.Text = "Dein StructuralOffice-Arbeitsbereich";
+            PageTitleText.Text = UiLocalization.Text("Overview");
+            PageSubtitleText.Text = UiLocalization.Choose(
+                "Your StructuralOffice workspace", "Dein StructuralOffice-Arbeitsbereich");
         }
         else if (WorkspacePages.TryGetValue(pageKey, out var page))
         {
-            PageTitleText.Text = page.Title;
-            PageSubtitleText.Text = page.Description;
+            PageTitleText.Text = UiLocalization.Text(page.Title);
+            PageSubtitleText.Text = UiLocalization.Choose(
+                page.Description,
+                pageKey switch
+                {
+                    "contacts" => "Kunden, Firmen und Ansprechpartner zentral verwalten.",
+                    "topics" => "Wiederkehrende Inhalte und Zuständigkeiten strukturieren.",
+                    "routines" => "Regelmäßige Abläufe planen und nachvollziehbar ausführen.",
+                    "tasks" => "Offene Vorgänge, Fälligkeiten und Bearbeitungsstände bündeln.",
+                    "invoices" => "Rechnungen, Zahlungsziele und Status übersichtlich verfolgen.",
+                    "documents" => "Dokumente zu Kontakten und Vorgängen geordnet bereitstellen.",
+                    "accounting" => "Automatische Mahnläufe, Rechnungsgruppen und Eskalationsregeln verwalten.",
+                    "settings" => "Verbindung, Sprache, Updates und Datenmodus konfigurieren.",
+                    _ => "Benutzerrollen, Backups und revisionssichere Änderungsprotokolle verwalten."
+                });
         }
         else
         {
@@ -358,7 +405,7 @@ public partial class MainWindow : Window
             AccountingMembersButton, AccountingRulesButton, AdministrationSectionBox,
             RoleBox, SetRoleButton, CreateBackupButton, DownloadBackupButton,
             RestoreBackupButton, DeleteBackupButton, TestNotificationButton,
-            ManualUpdateButton
+            ManualUpdateButton, LanguageBox
         };
         foreach (var element in all)
         {
@@ -376,7 +423,8 @@ public partial class MainWindow : Window
         SetVisibility(pageKey == "accounting", AccountingMembersButton, AccountingRulesButton);
         SetVisibility(pageKey == "administration", AdministrationSectionBox,
             TestNotificationButton);
-        SetVisibility(pageKey == "settings", TestNotificationButton, ManualUpdateButton);
+        SetVisibility(pageKey == "settings", TestNotificationButton, ManualUpdateButton,
+            LanguageBox);
         ContextActionsPanel.Visibility = all.Any(item => item.Visibility == Visibility.Visible)
             ? Visibility.Visible
             : Visibility.Collapsed;
@@ -393,17 +441,29 @@ public partial class MainWindow : Window
             : Visibility.Visible;
         RecordEditorText.IsReadOnly = !isLiveEditor;
         IncludeArchivedBox.Visibility = isLiveEditor ? Visibility.Visible : Visibility.Collapsed;
-        EditorHelpText.Text = isContactEditor
-            ? "Pflichtfelder sind mit * gekennzeichnet. Änderungen werden revisionssicher gespeichert."
-            : isTopicEditor
-                ? "Checklistenpunkte können direkt bearbeitet und per Auswahl entfernt werden."
-                : isRoutineEditor
-                    ? "Wiederholung, Themen und Erinnerungen werden als validierte Routine gespeichert."
-                    : isTaskEditor
-                        ? "Aufgabenstatus, Fälligkeit und Checkliste werden live mit dem Backend synchronisiert."
-                : isLiveEditor
-                    ? "JSON-Felder können bearbeitet werden. Revisionen schützen vor parallelen Änderungen."
-                    : "Diese Ansicht zeigt die vom StructuralOffice-Backend gespeicherten Daten vollständig an.";
+        EditorHelpText.Text = UiLocalization.IsGerman
+            ? isContactEditor
+                ? "Pflichtfelder sind mit * gekennzeichnet. Änderungen werden revisionssicher gespeichert."
+                : isTopicEditor
+                    ? "Checklistenpunkte können direkt bearbeitet und per Auswahl entfernt werden."
+                    : isRoutineEditor
+                        ? "Wiederholung, Themen und Erinnerungen werden als validierte Routine gespeichert."
+                        : isTaskEditor
+                            ? "Aufgabenstatus, Fälligkeit und Checkliste werden live mit dem Backend synchronisiert."
+                            : isLiveEditor
+                                ? "JSON-Felder können bearbeitet werden. Revisionen schützen vor parallelen Änderungen."
+                                : "Diese Ansicht zeigt die vom StructuralOffice-Backend gespeicherten Daten vollständig an."
+            : isContactEditor
+                ? "Required fields are marked with *. Changes are saved with revision protection."
+                : isTopicEditor
+                    ? "Checklist items can be edited directly and removed by selection."
+                    : isRoutineEditor
+                        ? "Recurrence, topics, and reminders are saved as a validated routine."
+                        : isTaskEditor
+                            ? "Task status, due date, and checklist are synchronized live with the backend."
+                            : isLiveEditor
+                                ? "JSON fields can be edited. Revisions protect concurrent changes."
+                                : "This view shows all data stored by the StructuralOffice backend.";
     }
 
     private static void SetVisibility(bool visible, params UIElement[] elements)
@@ -474,7 +534,7 @@ public partial class MainWindow : Window
                 var check = await _backend.CheckAsync();
                 var data = new JsonObject
                 {
-                    ["application_version"] = "0.6.0-alpha",
+                    ["application_version"] = "0.7.0-alpha",
                     ["backend"] = _backend.DisplayName,
                     ["integration_version"] = check.IntegrationVersion,
                     ["server"] = _session?.ServerAddress.ToString(),
@@ -519,7 +579,7 @@ public partial class MainWindow : Window
         _allDisplayRows = records.Select(CreateDisplayRecord).ToList();
         _selectedRecord = null;
         ClearEditor();
-        EditorTitleText.Text = "Datensatz auswählen";
+        EditorTitleText.Text = UiLocalization.Choose("Select a record", "Datensatz auswählen");
         EditorMetaText.Text = string.Empty;
         ApplyModuleFilter();
     }
@@ -533,8 +593,10 @@ public partial class MainWindow : Window
                 item.SearchText.Contains(query, StringComparison.CurrentCultureIgnoreCase)).ToList();
         ModuleDataGrid.ItemsSource = rows;
         ModuleBusyText.Text = string.IsNullOrWhiteSpace(query)
-            ? $"{rows.Count} Einträge"
-            : $"{rows.Count} von {_allDisplayRows.Count} Einträgen";
+            ? UiLocalization.Choose($"{rows.Count} records", $"{rows.Count} Einträge")
+            : UiLocalization.Choose(
+                $"{rows.Count} of {_allDisplayRows.Count} records",
+                $"{rows.Count} von {_allDisplayRows.Count} Einträgen");
         if (rows.Count > 0)
         {
             ModuleDataGrid.SelectedIndex = 0;
@@ -568,13 +630,30 @@ public partial class MainWindow : Window
         {
             title = FirstText(snapshot, "topic_name", "task_type", "routine_name");
         }
+        if (data["snapshot"] is JsonObject accountingSnapshot &&
+            FirstText(data, "source_type") == "accounting_due_batch" &&
+            FirstText(accountingSnapshot, "invoice_range") is { Length: > 0 } invoiceRange)
+        {
+            title = UiLocalization.Choose(
+                $"Overdue invoices {invoiceRange}",
+                $"Überfällige Rechnungen {invoiceRange}");
+        }
         if (string.IsNullOrWhiteSpace(title))
         {
             title = record.Id;
         }
         var status = record.ArchivedAt is not null
-            ? "archiviert"
+            ? UiLocalization.Choose("archived", "archiviert")
             : FirstText(data, "status", "role", "due_state", "enabled", "operation");
+        status = status switch
+        {
+            "open" => UiLocalization.Text("Open"),
+            "in_progress" => UiLocalization.Text("In progress"),
+            "completed" or "auto_completed" => UiLocalization.Text("Completed"),
+            "skipped" => UiLocalization.Text("Skipped"),
+            "cancelled" => UiLocalization.Text("Cancelled"),
+            _ => status
+        };
         var detail = FirstText(data, "email", "category", "due_date", "due_at",
             "source_name", "collection", "updated_at");
         if (string.IsNullOrWhiteSpace(detail) && data["snapshot"] is JsonObject detailSnapshot)
@@ -798,8 +877,10 @@ public partial class MainWindow : Window
         ClearEditor();
         _newManualTask = true;
         SetTaskCreationMode(true);
-        EditorTitleText.Text = "Neue manuelle Aufgabe";
-        EditorMetaText.Text = "Wird beim Speichern angelegt";
+        EditorTitleText.Text = UiLocalization.Choose(
+            "New manual task", "Neue manuelle Aufgabe");
+        EditorMetaText.Text = UiLocalization.Choose(
+            "Created when saved", "Wird beim Speichern angelegt");
         SaveRecordButton.IsEnabled = true;
         SetTaskStatusButton.IsEnabled = false;
         TaskTitleBox.Focus();
@@ -809,8 +890,9 @@ public partial class MainWindow : Window
     {
         _selectedRecord = null;
         ModuleDataGrid.SelectedItem = null;
-        EditorTitleText.Text = "Neuer Datensatz";
-        EditorMetaText.Text = "Wird beim Speichern angelegt";
+        EditorTitleText.Text = UiLocalization.Choose("New record", "Neuer Datensatz");
+        EditorMetaText.Text = UiLocalization.Choose(
+            "Created when saved", "Wird beim Speichern angelegt");
         SaveRecordButton.IsEnabled = true;
         ArchiveRecordButton.IsEnabled = false;
         StartEditingButton.IsEnabled = false;
@@ -919,7 +1001,8 @@ public partial class MainWindow : Window
             }
             if (_currentDataMode != "live")
             {
-                throw new InvalidOperationException("Dieser Bereich ist schreibgeschützt.");
+                throw new InvalidOperationException(UiLocalization.Choose(
+                    "This area is read-only.", "Dieser Bereich ist schreibgeschützt."));
             }
             if (_selectedRecord is null)
             {
@@ -933,7 +1016,7 @@ public partial class MainWindow : Window
             }
             await EndCurrentEditSessionCoreAsync();
             await LoadCurrentPageCoreAsync();
-        }, "Datensatz gespeichert.");
+        }, UiLocalization.Choose("Record saved.", "Datensatz gespeichert."));
     }
 
     private JsonObject ReadEditorData()
@@ -957,7 +1040,9 @@ public partial class MainWindow : Window
             TopicStepsGrid.CommitEdit(DataGridEditingUnit.Row, true);
             if (!int.TryParse(TopicMinutesBox.Text.Trim(), out var minutes))
             {
-                throw new InvalidDataException("Bitte die Bearbeitungsdauer als ganze Zahl eingeben.");
+                throw new InvalidDataException(UiLocalization.Choose(
+                    "Enter the duration as a whole number.",
+                    "Bitte die Bearbeitungsdauer als ganze Zahl eingeben."));
             }
             var topic = new TopicRecordModel
             {
@@ -979,7 +1064,9 @@ public partial class MainWindow : Window
         if (_currentPage == "routines")
         {
             if (!int.TryParse(RoutineIntervalBox.Text.Trim(), out var interval))
-                throw new InvalidDataException("Bitte das Intervall als ganze Zahl eingeben.");
+                throw new InvalidDataException(UiLocalization.Choose(
+                    "Enter the interval as a whole number.",
+                    "Bitte das Intervall als ganze Zahl eingeben."));
             return new RoutineRecordModel
             {
                 Id = _selectedRecord?.Record.Id ?? string.Empty,
@@ -995,17 +1082,22 @@ public partial class MainWindow : Window
                 DueTime = RoutineDueTimeBox.Text,
                 Timezone = RoutineTimezoneBox.Text,
                 CatchUpPolicy = SelectedTag(RoutineCatchUpBox) ?? "configured_window",
-                ReminderOffsets = ParseIntegers(RoutineRemindersBox.Text, "Erinnerungen"),
+                ReminderOffsets = ParseIntegers(RoutineRemindersBox.Text,
+                    UiLocalization.Choose("Reminders", "Erinnerungen")),
                 Weekdays = ReadWeekdayChecks(),
-                MonthDays = ParseIntegers(RoutineMonthDaysBox.Text, "Monatstage"),
-                Months = ParseIntegers(RoutineMonthsBox.Text, "Monate"),
+                MonthDays = ParseIntegers(RoutineMonthDaysBox.Text,
+                    UiLocalization.Choose("Month days", "Monatstage")),
+                Months = ParseIntegers(RoutineMonthsBox.Text,
+                    UiLocalization.Choose("Months", "Monate")),
                 Dates = ParseStrings(RoutineDatesBox.Text),
                 BusinessDayRule = SelectedTag(RoutineBusinessDayBox) ?? "none",
                 InvalidDayRule = SelectedTag(RoutineInvalidDayBox) ?? "skip"
             }.ToJson();
         }
         return JsonNode.Parse(RecordEditorText.Text) as JsonObject
-               ?? throw new InvalidDataException("Der Inhalt muss ein JSON-Objekt sein.");
+               ?? throw new InvalidDataException(UiLocalization.Choose(
+                   "The content must be a JSON object.",
+                   "Der Inhalt muss ein JSON-Objekt sein."));
     }
 
     private void AddTopicStepButton_OnClick(object sender, RoutedEventArgs eventArgs)
@@ -1013,7 +1105,7 @@ public partial class MainWindow : Window
         var step = new TopicStepModel
         {
             Id = $"step-{Guid.NewGuid():N}",
-            Title = "Neuer Checklistenpunkt"
+            Title = UiLocalization.Choose("New checklist item", "Neuer Checklistenpunkt")
         };
         _topicSteps.Add(step);
         TopicStepsGrid.SelectedItem = step;
@@ -1031,7 +1123,10 @@ public partial class MainWindow : Window
     private void AddTaskChecklistButton_OnClick(object sender, RoutedEventArgs eventArgs)
     {
         if (!_newManualTask) return;
-        var item = new TaskChecklistItemModel { Title = "Neuer Checklistenpunkt" };
+        var item = new TaskChecklistItemModel
+        {
+            Title = UiLocalization.Choose("New checklist item", "Neuer Checklistenpunkt")
+        };
         _taskChecklist.Add(item);
         TaskChecklistGrid.SelectedItem = item;
         TaskChecklistGrid.ScrollIntoView(item);
@@ -1178,7 +1273,7 @@ public partial class MainWindow : Window
                 _selectedRecord.Record.Id, _selectedRecord.Record.Revision,
                 new JsonObject { ["status"] = status });
             await LoadCurrentPageCoreAsync();
-        }, "Aufgabenstatus aktualisiert.");
+        }, UiLocalization.Choose("Task status updated.", "Aufgabenstatus aktualisiert."));
     }
 
     private async void ImportInvoicesButton_OnClick(object sender, RoutedEventArgs eventArgs)
@@ -1187,7 +1282,12 @@ public partial class MainWindow : Window
         {
             return;
         }
-        var dialog = new OpenFileDialog { Filter = "CSV-Dateien (*.csv)|*.csv|Alle Dateien (*.*)|*.*" };
+        var dialog = new OpenFileDialog
+        {
+            Filter = UiLocalization.Choose(
+                "CSV files (*.csv)|*.csv|All files (*.*)|*.*",
+                "CSV-Dateien (*.csv)|*.csv|Alle Dateien (*.*)|*.*")
+        };
         if (dialog.ShowDialog(this) != true)
         {
             return;
@@ -1196,15 +1296,81 @@ public partial class MainWindow : Window
         {
             var content = await File.ReadAllBytesAsync(dialog.FileName);
             var preview = await _backend.ImportInvoiceCsvAsync(dialog.SafeFileName, content, false);
-            var decision = MessageBox.Show(
-                "Importvorschau:\n\n" + preview.ToJsonString(PrettyJson) +
-                "\n\nDiesen Import jetzt anwenden?",
-                "Rechnungsimport", MessageBoxButton.YesNo, MessageBoxImage.Question);
-            if (decision == MessageBoxResult.Yes)
+            if (preview["records"] is not JsonArray records || records.Count == 0)
             {
-                await _backend.ImportInvoiceCsvAsync(dialog.SafeFileName, content, true);
-                await LoadCurrentPageCoreAsync();
+                throw new InvalidDataException(UiLocalization.Choose(
+                    "The CSV file contains no processable invoices. Check the column " +
+                    "headers, delimiter, and content.",
+                    "Die CSV-Datei enthält keine verarbeitbaren Rechnungen. " +
+                    "Bitte prüfe Spaltenüberschriften, Trennzeichen und Inhalt."));
             }
+            if (preview["errors"] is JsonArray errors && errors.Count > 0)
+            {
+                var details = errors.Take(5).Select(item =>
+                {
+                    if (item is not JsonObject error)
+                    {
+                        return item?.ToJsonString() ?? UiLocalization.Choose(
+                            "Unknown CSV error", "Unbekannter CSV-Fehler");
+                    }
+                    var row = error["row"]?.ToString();
+                    var message = error["message"]?.GetValue<string>() ?? UiLocalization.Choose(
+                        "Invalid record", "Ungültiger Datensatz");
+                    return string.IsNullOrWhiteSpace(row)
+                        ? message
+                        : UiLocalization.Choose($"Row {row}: {message}", $"Zeile {row}: {message}");
+                });
+                var suffix = errors.Count > 5
+                    ? UiLocalization.Choose(
+                        $"\n… and {errors.Count - 5} more errors",
+                        $"\n… und {errors.Count - 5} weitere Fehler")
+                    : string.Empty;
+                throw new InvalidDataException(UiLocalization.Choose(
+                    $"The CSV file contains {errors.Count} validation errors:\n\n",
+                    $"Die CSV-Datei enthält {errors.Count} Validierungsfehler:\n\n") +
+                    string.Join('\n', details) + suffix);
+            }
+
+            var created = preview["created"]?.GetValue<int>() ?? 0;
+            var updated = preview["updated"]?.GetValue<int>() ?? 0;
+            var unchanged = preview["unchanged"]?.GetValue<int>() ?? 0;
+            var warnings = (preview["warnings"] as JsonArray)?.Count ?? 0;
+            var decision = MessageBox.Show(
+                this,
+                UiLocalization.Choose(
+                    $"CSV import preview for {dialog.SafeFileName}\n\n" +
+                    $"Invoices: {records.Count}\n" +
+                    $"New: {created}  ·  Updated: {updated}  ·  Unchanged: {unchanged}\n" +
+                    $"Warnings: {warnings}\n\nApply this import now?",
+                    $"CSV-Importvorschau für {dialog.SafeFileName}\n\n" +
+                    $"Rechnungen: {records.Count}\n" +
+                    $"Neu: {created}  ·  Aktualisiert: {updated}  ·  Unverändert: {unchanged}\n" +
+                    $"Warnungen: {warnings}\n\nDiesen Import jetzt anwenden?"),
+                UiLocalization.Choose("Invoice import", "Rechnungsimport"),
+                MessageBoxButton.YesNo, MessageBoxImage.Question);
+            if (decision != MessageBoxResult.Yes)
+            {
+                ModuleBusyText.Text = UiLocalization.Choose(
+                    "CSV import not applied", "CSV-Import nicht angewendet");
+                return;
+            }
+
+            var result = await _backend.ImportInvoiceCsvAsync(
+                dialog.SafeFileName, content, true);
+            await LoadCurrentPageCoreAsync();
+            if (result["already_imported"]?.GetValue<bool>() == true)
+            {
+                ModuleBusyText.Text = UiLocalization.Choose(
+                    "CSV file was already fully imported",
+                    "CSV-Datei war bereits vollständig importiert");
+                return;
+            }
+            ModuleBusyText.Text =
+                UiLocalization.Choose(
+                    $"CSV import complete: {result["created"]?.GetValue<int>() ?? 0} new, " +
+                    $"{result["updated"]?.GetValue<int>() ?? 0} updated",
+                    $"CSV-Import abgeschlossen: {result["created"]?.GetValue<int>() ?? 0} neu, " +
+                    $"{result["updated"]?.GetValue<int>() ?? 0} aktualisiert");
         });
     }
 
@@ -1219,7 +1385,9 @@ public partial class MainWindow : Window
         }
         var dialog = new OpenFileDialog
         {
-            Filter = "Excel-Dateien (*.xlsx)|*.xlsx|Alle Dateien (*.*)|*.*"
+            Filter = UiLocalization.Choose(
+                "Excel files (*.xlsx)|*.xlsx|All files (*.*)|*.*",
+                "Excel-Dateien (*.xlsx)|*.xlsx|Alle Dateien (*.*)|*.*")
         };
         if (dialog.ShowDialog(this) != true)
         {
@@ -1231,13 +1399,21 @@ public partial class MainWindow : Window
                 await File.ReadAllBytesAsync(dialog.FileName));
             if (preview["records"] is not JsonArray records)
             {
-                throw new InvalidDataException("Die Importvorschau enthält keine Rechnungen.");
+                throw new InvalidDataException(UiLocalization.Choose(
+                    "The import preview contains no invoices.",
+                    "Die Importvorschau enthält keine Rechnungen."));
             }
             var decision = MessageBox.Show(
-                $"Excel-Import: {records.Count} Datensätze.\n\n" +
-                $"Neu: {preview["created"]}  ·  Aktualisiert: {preview["updated"]}\n\n" +
-                "Diesen Import jetzt anwenden?",
-                "Excel-Rechnungsimport", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                this,
+                UiLocalization.Choose(
+                    $"Excel import: {records.Count} records.\n\n" +
+                    $"New: {preview["created"]}  ·  Updated: {preview["updated"]}\n\n" +
+                    "Apply this import now?",
+                    $"Excel-Import: {records.Count} Datensätze.\n\n" +
+                    $"Neu: {preview["created"]}  ·  Aktualisiert: {preview["updated"]}\n\n" +
+                    "Diesen Import jetzt anwenden?"),
+                UiLocalization.Choose("Excel invoice import", "Excel-Rechnungsimport"),
+                MessageBoxButton.YesNo, MessageBoxImage.Question);
             if (decision == MessageBoxResult.Yes)
             {
                 await _backend.ApplyInvoiceRecordsAsync(records);
@@ -1256,7 +1432,9 @@ public partial class MainWindow : Window
     {
         if (_backend is null || _selectedRecord is null)
         {
-            MessageBox.Show("Bitte zuerst eine Rechnung auswählen.", "StructuralOffice");
+            MessageBox.Show(this, UiLocalization.Choose(
+                "Select an invoice first.", "Bitte zuerst eine Rechnung auswählen."),
+                "StructuralOffice");
             return;
         }
         var selected = ModuleDataGrid.SelectedItems.OfType<DisplayRecord>().ToList();
@@ -1459,7 +1637,9 @@ public partial class MainWindow : Window
             {
                 await UpdateLog.WriteAsync($"Live update connection interrupted: {exception.Message}");
                 await Dispatcher.InvokeAsync(() =>
-                    DashboardStatusText.Text = "Live-Verbindung wird neu aufgebaut …");
+                    DashboardStatusText.Text = UiLocalization.Choose(
+                        "Reconnecting live updates …",
+                        "Live-Verbindung wird neu aufgebaut …"));
             }
 
             try
@@ -1476,7 +1656,8 @@ public partial class MainWindow : Window
     private Task HandleLiveUpdateAsync(JsonObject liveEvent) =>
         Dispatcher.InvokeAsync(() =>
         {
-            DashboardStatusText.Text = "Live verbunden";
+            DashboardStatusText.Text = UiLocalization.Choose(
+                "Live connected", "Live verbunden");
             var collection = liveEvent["collection"]?.GetValue<string>();
             var relevant = string.Equals(collection, _currentPage, StringComparison.OrdinalIgnoreCase) ||
                            (_currentPage == "documents" && collection == "invoices") ||
@@ -1509,7 +1690,8 @@ public partial class MainWindow : Window
         }
         _moduleBusy = true;
         RefreshModuleButton.IsEnabled = false;
-        ModuleBusyText.Text = "Backend wird verarbeitet …";
+        ModuleBusyText.Text = UiLocalization.Choose(
+            "Processing backend …", "Backend wird verarbeitet …");
         try
         {
             await action();
@@ -1524,23 +1706,34 @@ public partial class MainWindow : Window
             {
                 _selectedRecord = CreateDisplayRecord(exception.CurrentRecord);
                 LoadRecordIntoEditor(exception.CurrentRecord);
-                EditorMetaText.Text = $"Neueste Backendversion · Revision {exception.CurrentRecord.Revision}";
+                EditorMetaText.Text = UiLocalization.Choose(
+                    $"Latest backend version · Revision {exception.CurrentRecord.Revision}",
+                    $"Neueste Backendversion · Revision {exception.CurrentRecord.Revision}");
                 MessageBox.Show(
-                    "Der Datensatz wurde zwischenzeitlich von einer anderen Person geändert. " +
-                    "Die aktuelle Backendversion wurde geladen. Bitte prüfe deine Eingaben erneut.",
-                    "Änderungskonflikt", MessageBoxButton.OK, MessageBoxImage.Warning);
-                ModuleBusyText.Text = "Aktuelle Version geladen";
+                    this,
+                    UiLocalization.Choose(
+                        "The record was changed by another person. The latest backend " +
+                        "version was loaded. Review your changes again.",
+                        "Der Datensatz wurde zwischenzeitlich von einer anderen Person geändert. " +
+                        "Die aktuelle Backendversion wurde geladen. Bitte prüfe deine Eingaben erneut."),
+                    UiLocalization.Choose("Edit conflict", "Änderungskonflikt"),
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                ModuleBusyText.Text = UiLocalization.Choose(
+                    "Latest version loaded", "Aktuelle Version geladen");
                 return;
             }
-            MessageBox.Show(exception.Message, "StructuralOffice-Backend",
+            MessageBox.Show(this, UiLocalization.Text(exception.Message),
+                "StructuralOffice Backend",
                 MessageBoxButton.OK, MessageBoxImage.Warning);
-            ModuleBusyText.Text = "Aktion fehlgeschlagen";
+            ModuleBusyText.Text = UiLocalization.Choose(
+                "Action failed", "Aktion fehlgeschlagen");
         }
         catch (Exception exception)
         {
-            MessageBox.Show(exception.Message, "StructuralOffice",
+            MessageBox.Show(this, UiLocalization.Text(exception.Message), "StructuralOffice",
                 MessageBoxButton.OK, MessageBoxImage.Error);
-            ModuleBusyText.Text = "Aktion fehlgeschlagen";
+            ModuleBusyText.Text = UiLocalization.Choose(
+                "Action failed", "Aktion fehlgeschlagen");
         }
         finally
         {
@@ -1565,7 +1758,9 @@ public partial class MainWindow : Window
         foreach (var item in ParseStrings(value))
         {
             if (!int.TryParse(item, out var number))
-                throw new InvalidDataException($"{fieldName}: '{item}' ist keine ganze Zahl.");
+                throw new InvalidDataException(UiLocalization.Choose(
+                    $"{fieldName}: '{item}' is not a whole number.",
+                    $"{fieldName}: '{item}' ist keine ganze Zahl."));
             result.Add(number);
         }
         return result;
@@ -1639,7 +1834,8 @@ public partial class MainWindow : Window
         var server = session.ServerAddress.ToString().TrimEnd('/');
         SidebarServerText.Text = server;
         DashboardServerText.Text = server;
-        IntegrationVersionText.Text = result.IntegrationVersion ?? "Nicht verfügbar";
+        IntegrationVersionText.Text = result.IntegrationVersion ?? UiLocalization.Choose(
+            "Not available", "Nicht verfügbar");
 
         var integrationCheck = result.Checks.FirstOrDefault(
             item => string.Equals(item.Name, "StructuralOffice", StringComparison.OrdinalIgnoreCase));
@@ -1659,9 +1855,10 @@ public partial class MainWindow : Window
         DashboardStatusDot.Fill = brush;
         DashboardStatusText.Text = state switch
         {
-            CheckState.Success => "System bereit",
-            CheckState.Warning => "Integration prüfen",
-            _ => "Verbindung prüfen"
+            CheckState.Success => UiLocalization.Choose("System ready", "System bereit"),
+            CheckState.Warning => UiLocalization.Choose(
+                "Check integration", "Integration prüfen"),
+            _ => UiLocalization.Choose("Check connection", "Verbindung prüfen")
         };
     }
 

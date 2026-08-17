@@ -26,6 +26,11 @@ public sealed class AppSettingsStore
         return (await LoadAsync()).LastUpdateCheck;
     }
 
+    public async Task<string> LoadLanguageAsync()
+    {
+        return (await LoadAsync()).Language is "de" ? "de" : "en";
+    }
+
     public async Task<SavedConnection> LoadConnectionAsync()
     {
         var settings = await LoadAsync();
@@ -70,6 +75,12 @@ public sealed class AppSettingsStore
         await SaveAsync(settings with { LastUpdateCheck = checkedAt });
     }
 
+    public async Task SaveLanguageAsync(string language)
+    {
+        var settings = await LoadAsync();
+        await SaveAsync(settings with { Language = language == "de" ? "de" : "en" });
+    }
+
     public async Task SaveConnectionAsync(
         string serverUrl,
         bool rememberLogin,
@@ -102,7 +113,8 @@ public sealed class AppSettingsStore
         string? ServerUrl = null,
         DateTimeOffset? LastUpdateCheck = null,
         bool RememberLogin = false,
-        string? AuthClientId = null);
+        string? AuthClientId = null,
+        string Language = "en");
 
     public sealed record SavedConnection(
         string? ServerUrl,

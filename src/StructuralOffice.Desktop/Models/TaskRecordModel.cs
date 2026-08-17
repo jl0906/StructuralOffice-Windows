@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
 using System.Text.Json.Nodes;
+using StructuralOffice.Desktop.Services;
 
 namespace StructuralOffice.Desktop.Models;
 
@@ -36,6 +37,18 @@ public sealed class TaskRecordModel
             Priority = Text(value, "priority") is { Length: > 0 } priority ? priority : "normal",
             CompletionNote = Text(value, "completion_note")
         };
+        if (Text(value, "source_type") == "accounting_due_batch" &&
+            Text(snapshot, "invoice_range") is { Length: > 0 } invoiceRange)
+        {
+            model.Title = UiLocalization.Choose(
+                $"Overdue invoices {invoiceRange}",
+                $"Überfällige Rechnungen {invoiceRange}");
+            var openCount = snapshot["invoice_count_open"]?.ToString() ?? "0";
+            model.Description = UiLocalization.Choose(
+                $"{openCount} overdue open invoices.",
+                $"{openCount} offene überfällige Rechnungen.");
+            model.Category = UiLocalization.Choose("Accounting", "Buchhaltung");
+        }
         if (value["checklist"] is JsonArray checklist)
         {
             foreach (var item in checklist.OfType<JsonObject>())
@@ -85,14 +98,18 @@ public sealed class TaskRecordModel
     private void Validate()
     {
         if (string.IsNullOrWhiteSpace(Title))
-            throw new InvalidDataException("Bitte einen Aufgabentitel eingeben.");
+            throw new InvalidDataException(UiLocalization.Choose(
+                "Enter a task title.", "Bitte einen Aufgabentitel eingeben."));
         if (!DateTime.TryParse(DueAt, CultureInfo.InvariantCulture,
                 DateTimeStyles.AssumeLocal, out _))
-            throw new InvalidDataException("Die Fälligkeit ist ungültig.");
+            throw new InvalidDataException(UiLocalization.Choose(
+                "The due date is invalid.", "Die Fälligkeit ist ungültig."));
         if (Priority is not ("low" or "normal" or "high" or "critical"))
-            throw new InvalidDataException("Die Aufgabenpriorität ist ungültig.");
+            throw new InvalidDataException(UiLocalization.Choose(
+                "The task priority is invalid.", "Die Aufgabenpriorität ist ungültig."));
         if (Status is not ("open" or "in_progress" or "completed" or "skipped" or "cancelled"))
-            throw new InvalidDataException("Der Aufgabenstatus ist ungültig.");
+            throw new InvalidDataException(UiLocalization.Choose(
+                "The task status is invalid.", "Der Aufgabenstatus ist ungültig."));
     }
 
     private static string NormalizeDueAt(string value) =>

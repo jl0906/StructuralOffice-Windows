@@ -11,7 +11,9 @@ public sealed class StandaloneBackend : IStructuralOfficeBackend
         var result = new IntegrationCheckResult(
             [new CheckItem(
                 "Standalone", CheckState.Warning,
-                "Der lokale Standalone-Dienst ist für einen späteren Release vorgesehen.")],
+                UiLocalization.Choose(
+                    "The local standalone service is planned for a later release.",
+                    "Der lokale Standalone-Dienst ist für einen späteren Release vorgesehen."))],
             null,
             DateTimeOffset.Now);
         return Task.FromResult(result);

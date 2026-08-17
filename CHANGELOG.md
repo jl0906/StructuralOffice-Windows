@@ -2,6 +2,30 @@
 
 ## [Unreleased]
 
+## [0.7.0-alpha] - 2026-08-17
+
+### Added
+
+- Persistent English and German application language selection, with English as the
+  source and default UI language.
+- Overdue open invoices are represented as grouped tasks whose titles show the first
+  and last invoice number in the batch.
+
+### Changed
+
+- Contacts, documents, and dunning are now marked as coming soon while those modules
+  are redesigned.
+
+## [0.6.1-alpha] - 2026-08-17
+
+### Fixed
+
+- CSV invoice imports now show a compact summary instead of rendering the complete
+  parsed file, report validation errors clearly, and display whether the import was
+  applied, cancelled, or already present.
+- Running the installer manually over an existing installation now offers an in-place
+  update while preserving the installation directory and shortcut preference.
+
 ## [0.6.0-alpha] - 2026-08-17
 
 ### Added
