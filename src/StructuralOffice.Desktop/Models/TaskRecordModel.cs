@@ -17,7 +17,10 @@ public sealed class TaskRecordModel
     public string DueAt { get; set; } = DateTime.Now.AddDays(1).ToString("yyyy-MM-ddTHH:mm");
     public string Status { get; set; } = "open";
     public string Priority { get; set; } = "normal";
+    public int EstimatedMinutes { get; set; } = 15;
     public string CompletionNote { get; set; } = string.Empty;
+    public List<string> AvailableActions { get; set; } = [];
+    public bool SettlementConfirmationRequired { get; set; }
     public ObservableCollection<TaskChecklistItemModel> Checklist { get; } = [];
 
     public static TaskRecordModel FromJson(JsonObject value)
@@ -35,19 +38,28 @@ public sealed class TaskRecordModel
             DueAt = NormalizeDueAt(Text(value, "due_at")),
             Status = Text(value, "status") is { Length: > 0 } status ? status : "open",
             Priority = Text(value, "priority") is { Length: > 0 } priority ? priority : "normal",
-            CompletionNote = Text(value, "completion_note")
+            EstimatedMinutes = value["estimated_minutes"]?.GetValue<int>() ?? 15,
+            CompletionNote = Text(value, "completion_note"),
+            AvailableActions = Strings(snapshot["available_actions"] as JsonArray),
+            SettlementConfirmationRequired =
+                snapshot["settlement_confirmation_required"]?.GetValue<bool>() ?? false
         };
         if (Text(value, "source_type") == "accounting_due_batch" &&
             Text(snapshot, "invoice_range") is { Length: > 0 } invoiceRange)
         {
-            model.Title = UiLocalization.Choose(
-                $"Overdue invoices {invoiceRange}",
-                $"Überfällige Rechnungen {invoiceRange}");
+            var taskType = Text(snapshot, "task_type");
+            model.Title = taskType == "dunning"
+                ? UiLocalization.Choose($"Write dunning notice {invoiceRange}", $"Mahnung {invoiceRange} schreiben")
+                : UiLocalization.Choose($"Write payment reminders {invoiceRange}", $"Zahlungserinnerungen {invoiceRange} schreiben");
             var openCount = snapshot["invoice_count_open"]?.ToString() ?? "0";
             model.Description = UiLocalization.Choose(
                 $"{openCount} overdue open invoices.",
                 $"{openCount} offene überfällige Rechnungen.");
             model.Category = UiLocalization.Choose("Accounting", "Buchhaltung");
+        }
+        else if (model.SourceType == "routine" && LooksTechnicalIdentifier(model.Title))
+        {
+            model.Title = UiLocalization.Choose("Routine task", "Routine-Aufgabe");
         }
         if (value["checklist"] is JsonArray checklist)
         {
@@ -79,6 +91,7 @@ public sealed class TaskRecordModel
             ["category"] = Category.Trim(),
             ["due_at"] = ToBackendDueAt(DueAt),
             ["priority"] = Priority,
+            ["estimated_minutes"] = EstimatedMinutes,
             ["checklist"] = checklist
         };
     }
@@ -89,8 +102,8 @@ public sealed class TaskRecordModel
         return new JsonObject
         {
             ["due_at"] = ToBackendDueAt(DueAt),
-            ["status"] = Status,
             ["priority"] = Priority,
+            ["estimated_minutes"] = EstimatedMinutes,
             ["completion_note"] = CompletionNote.Trim()
         };
     }
@@ -107,6 +120,10 @@ public sealed class TaskRecordModel
         if (Priority is not ("low" or "normal" or "high" or "critical"))
             throw new InvalidDataException(UiLocalization.Choose(
                 "The task priority is invalid.", "Die Aufgabenpriorität ist ungültig."));
+        if (EstimatedMinutes is < 1 or > 1440)
+            throw new InvalidDataException(UiLocalization.Choose(
+                "The estimate must be between 1 and 1440 minutes.",
+                "Der geschätzte Aufwand muss zwischen 1 und 1440 Minuten liegen."));
         if (Status is not ("open" or "in_progress" or "completed" or "skipped" or "cancelled"))
             throw new InvalidDataException(UiLocalization.Choose(
                 "The task status is invalid.", "Der Aufgabenstatus ist ungültig."));
@@ -120,6 +137,12 @@ public sealed class TaskRecordModel
 
     private static string Text(JsonObject value, string name) =>
         value[name]?.GetValue<string>() ?? string.Empty;
+    private static List<string> Strings(JsonArray? values) =>
+        values?.Select(item => item?.GetValue<string>() ?? string.Empty)
+            .Where(item => item.Length > 0).ToList() ?? [];
+    private static bool LooksTechnicalIdentifier(string value) =>
+        Guid.TryParse(value, out _) ||
+        (value.Length >= 24 && value.All(char.IsAsciiHexDigit));
 }
 
 public sealed class TaskChecklistItemModel

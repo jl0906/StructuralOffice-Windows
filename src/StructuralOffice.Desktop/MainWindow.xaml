@@ -2,8 +2,8 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="StructuralOffice" Icon="Assets/StructuralOffice.ico"
-        Width="1120" Height="720" MinWidth="900" MinHeight="620"
-        WindowStartupLocation="CenterScreen" Background="#0B0E14">
+        Width="1240" Height="800" MinWidth="1024" MinHeight="680"
+        WindowStartupLocation="CenterScreen" Background="#F4F7FB">
     <Grid>
         <!-- First-run and signed-out experience -->
         <Grid x:Name="ConnectionView">
@@ -17,14 +17,14 @@
                     <StackPanel DockPanel.Dock="Top">
                         <Image Source="Assets/icon.png" Width="62" Height="62"
                                HorizontalAlignment="Left" Margin="0,0,0,16" />
-                        <TextBlock Text="StructuralOffice" FontSize="23" FontWeight="SemiBold" />
+                        <TextBlock Text="StructuralOffice" FontSize="23" FontWeight="SemiBold" Foreground="White" />
                         <TextBlock Text="Structured office processes at a glance"
                                    Foreground="#8894A8" Margin="0,7,0,0" TextWrapping="Wrap" />
                     </StackPanel>
                     <StackPanel DockPanel.Dock="Bottom">
                         <TextBlock Text="Secure sign-in through Home Assistant"
                                    Foreground="#657086" FontSize="11" TextWrapping="Wrap" />
-                        <TextBlock Text="Version 0.8.0-alpha" Foreground="#657086"
+                        <TextBlock Text="Version 0.9.3-beta" Foreground="#94A3B8"
                                    FontSize="11" Margin="0,5,0,0" />
                     </StackPanel>
                 </DockPanel>
@@ -104,42 +104,32 @@
                         <StackPanel Orientation="Horizontal" Margin="7,0,0,23">
                             <Image Source="Assets/icon.png" Width="38" Height="38" />
                             <StackPanel Margin="11,0,0,0" VerticalAlignment="Center">
-                                <TextBlock Text="StructuralOffice" FontSize="17" FontWeight="SemiBold" />
-                                <TextBlock Text="0.8.0-alpha" FontSize="10" Foreground="#657086" />
+                                <TextBlock Text="StructuralOffice" FontSize="17" FontWeight="SemiBold" Foreground="White" />
+                                <TextBlock Text="0.9.3-beta" FontSize="10" Foreground="#94A3B8" />
                             </StackPanel>
                         </StackPanel>
 
-                        <TextBlock Text="WORKSPACE" Foreground="#657086" FontSize="10"
+                        <TextBlock Text="ARBEITSBEREICH" Foreground="#94A3B8" FontSize="10"
                                    FontWeight="SemiBold" Margin="12,0,0,6" />
                         <StackPanel x:Name="NavigationPanel">
-                            <Button Content="Overview" Tag="overview" Style="{StaticResource NavButtonStyle}"
+                            <Button Content="Heute" Tag="overview" Style="{StaticResource NavButtonStyle}"
                                     Click="NavigationButton_OnClick" />
-                            <Button x:Name="ContactsNavigationButton" Content="Contacts · Coming soon"
-                                    Tag="contacts" Style="{StaticResource NavButtonStyle}" IsEnabled="False" />
-                            <Button Content="Topics" Tag="topics" Style="{StaticResource NavButtonStyle}"
+                            <Button Content="Aufgaben" Tag="tasks" Style="{StaticResource NavButtonStyle}"
                                     Click="NavigationButton_OnClick" />
-                            <Button Content="Routines" Tag="routines" Style="{StaticResource NavButtonStyle}"
+                            <Button Content="Routinen" Tag="routines" Style="{StaticResource NavButtonStyle}"
                                     Click="NavigationButton_OnClick" />
-                            <Button Content="Tasks" Tag="tasks" Style="{StaticResource NavButtonStyle}"
+                            <Button Content="Rechnungen importieren" Tag="invoices" Style="{StaticResource NavButtonStyle}"
                                     Click="NavigationButton_OnClick" />
-                            <Button Content="Invoices" Tag="invoices" Style="{StaticResource NavButtonStyle}"
-                                    Click="NavigationButton_OnClick" />
-                            <Button x:Name="DocumentsNavigationButton" Content="Documents · Coming soon"
-                                    Tag="documents" Style="{StaticResource NavButtonStyle}" IsEnabled="False" />
-                            <Button x:Name="AccountingNavigationButton" Content="Dunning · Coming soon"
-                                    Tag="accounting" Style="{StaticResource NavButtonStyle}" IsEnabled="False" />
                         </StackPanel>
 
-                        <TextBlock Text="SYSTEM" Foreground="#657086" FontSize="10"
+                        <TextBlock Text="SYSTEM" Foreground="#94A3B8" FontSize="10"
                                    FontWeight="SemiBold" Margin="12,22,0,6" />
                         <Button x:Name="SettingsNavigationButton" Content="Settings" Tag="settings"
                                 Style="{StaticResource NavButtonStyle}"
                                 Click="NavigationButton_OnClick" />
                         <Button x:Name="AdministrationNavigationButton" Content="Administration" Tag="administration"
-                                Style="{StaticResource NavButtonStyle}"
+                                Style="{StaticResource NavButtonStyle}" Visibility="Collapsed"
                                 Click="NavigationButton_OnClick" />
-                        <Button Content="Standalone  ·  later" IsEnabled="False"
-                                Style="{StaticResource NavButtonStyle}" />
                     </StackPanel>
 
                     <StackPanel DockPanel.Dock="Bottom">
@@ -148,7 +138,7 @@
                                 <StackPanel Orientation="Horizontal">
                                     <Ellipse x:Name="SidebarStatusDot" Width="8" Height="8"
                                              Fill="#3FC784" Margin="0,0,8,0" />
-                                    <TextBlock Text="Connected" FontSize="12" FontWeight="SemiBold" />
+                                    <TextBlock Text="Verbunden" FontSize="12" FontWeight="SemiBold" Foreground="White" />
                                 </StackPanel>
                                 <TextBlock x:Name="SidebarServerText" Foreground="#748097"
                                            FontSize="10" Margin="16,4,0,0" TextTrimming="CharacterEllipsis" />
@@ -167,7 +157,7 @@
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
                 <Border Grid.Row="0" BorderBrush="{StaticResource BorderBrush}"
-                        BorderThickness="0,0,0,1" Background="#0D1119">
+                        BorderThickness="0,0,0,1" Background="White">
                     <Grid Margin="38,0">
                         <StackPanel VerticalAlignment="Center">
                             <TextBlock x:Name="PageTitleText" Text="Overview" FontSize="23"
@@ -182,11 +172,11 @@
                 <Grid Grid.Row="1">
                     <ScrollViewer x:Name="DashboardPanel" VerticalScrollBarVisibility="Auto">
                         <StackPanel Margin="38,32,38,48">
-                            <Border CornerRadius="10" Padding="26" Margin="0,0,0,22">
+                            <Border CornerRadius="14" Padding="28" Margin="0,0,0,22">
                                 <Border.Background>
                                     <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                        <GradientStop Color="#1D4F9D" Offset="0" />
-                                        <GradientStop Color="#17345F" Offset="1" />
+                                        <GradientStop Color="#2563EB" Offset="0" />
+                                        <GradientStop Color="#1D4ED8" Offset="1" />
                                     </LinearGradientBrush>
                                 </Border.Background>
                                 <Grid>
@@ -195,77 +185,93 @@
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <StackPanel>
-                                        <TextBlock Text="Welcome to StructuralOffice" FontSize="23"
-                                                   FontWeight="SemiBold" />
-                                        <TextBlock Text="Your central workspace for recurring office processes."
-                                                   Foreground="#C6D9F5" Margin="0,7,0,0" />
+                                        <TextBlock Text="Dein heutiger Bürotag" FontSize="17"
+                                                   Foreground="#DBEAFE" FontWeight="SemiBold" />
+                                        <TextBlock x:Name="TodayMinutesText" Text="–" FontSize="38"
+                                                   Foreground="White" FontWeight="SemiBold" Margin="0,7,0,0" />
+                                        <TextBlock x:Name="TodayTaskCountText" Text="Aufgaben werden geladen"
+                                                   Foreground="#DBEAFE" Margin="0,5,0,0" />
                                     </StackPanel>
                                     <Border Grid.Column="1" Background="#26FFFFFF" CornerRadius="16"
                                             Padding="13,7" VerticalAlignment="Center">
                                         <StackPanel Orientation="Horizontal">
                                             <Ellipse x:Name="DashboardStatusDot" Width="8" Height="8"
                                                      Fill="#6FE1A8" Margin="0,0,8,0" />
-                                            <TextBlock x:Name="DashboardStatusText" Text="System ready"
+                                            <TextBlock x:Name="DashboardStatusText" Text="Bereit" Foreground="White"
                                                        FontSize="12" FontWeight="SemiBold" />
                                         </StackPanel>
                                     </Border>
                                 </Grid>
                             </Border>
 
-                            <TextBlock Text="System status" FontSize="16" FontWeight="SemiBold"
+                            <TextBlock Text="Längste anstehende Aufgabe" FontSize="16" FontWeight="SemiBold"
                                        Margin="0,0,0,12" />
-                            <WrapPanel Margin="0,0,0,26">
-                                <Border Style="{StaticResource CardStyle}" Width="205" Margin="0,0,12,12">
+                            <Border Style="{StaticResource CardStyle}" Margin="0,0,0,26" Padding="24">
+                                <Grid>
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                                     <StackPanel>
-                                        <TextBlock Text="CONNECTION" Foreground="#718096" FontSize="10" />
-                                        <TextBlock Text="Online" Foreground="#63D69B" FontSize="20"
-                                                   FontWeight="SemiBold" Margin="0,7,0,0" />
-                                        <TextBlock x:Name="DashboardServerText" Foreground="#748097"
-                                                   FontSize="10" Margin="0,5,0,0" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock x:Name="LongestTaskTitleText" Text="Keine Aufgabe fällig"
+                                                   FontSize="20" FontWeight="SemiBold" />
+                                        <TextBlock x:Name="LongestTaskMetaText" Text="Dein Tag ist frei geplant."
+                                                   Foreground="{StaticResource MutedTextBrush}" Margin="0,7,0,0" />
                                     </StackPanel>
-                                </Border>
-                                <Border Style="{StaticResource CardStyle}" Width="205" Margin="0,0,12,12">
-                                    <StackPanel>
-                                        <TextBlock Text="INTEGRATION" Foreground="#718096" FontSize="10" />
-                                        <TextBlock x:Name="IntegrationVersionText" Text="Ready" FontSize="20"
-                                                   FontWeight="SemiBold" Margin="0,7,0,0" />
-                                        <TextBlock Text="StructuralOffice backend" Foreground="#748097"
-                                                   FontSize="10" Margin="0,5,0,0" />
-                                    </StackPanel>
-                                </Border>
-                                <Border Style="{StaticResource CardStyle}" Width="205" Margin="0,0,12,12">
-                                    <StackPanel>
-                                        <TextBlock Text="DATA MODE" Foreground="#718096" FontSize="10" />
-                                        <TextBlock Text="Home Assistant" FontSize="20"
-                                                   FontWeight="SemiBold" Margin="0,7,0,0" />
-                                        <TextBlock Text="Standalone prepared" Foreground="#748097"
-                                                   FontSize="10" Margin="0,5,0,0" />
-                                    </StackPanel>
-                                </Border>
-                                <Border Style="{StaticResource CardStyle}" Width="205" Margin="0,0,0,12">
-                                    <StackPanel>
-                                        <TextBlock Text="UPDATES" Foreground="#718096" FontSize="10" />
-                                        <TextBlock Text="Automatic" FontSize="20"
-                                                   FontWeight="SemiBold" Margin="0,7,0,0" />
-                                        <TextBlock Text="GitHub Releases" Foreground="#748097"
-                                                   FontSize="10" Margin="0,5,0,0" />
-                                    </StackPanel>
-                                </Border>
-                            </WrapPanel>
-
-                            <TextBlock Text="Workspaces" FontSize="16" FontWeight="SemiBold"
-                                       Margin="0,0,0,12" />
-                            <WrapPanel>
-                                <Button Content="Manage contacts · Coming soon" Tag="contacts"
-                                        Margin="0,0,10,10" IsEnabled="False"
-                                        Style="{StaticResource SecondaryButtonStyle}" />
-                                <Button Content="Plan routines" Tag="routines" Margin="0,0,10,10"
+                                    <Button Grid.Column="1" Content="Aufgaben öffnen" Tag="tasks" Margin="20,0,0,0"
+                                            VerticalAlignment="Center" Click="NavigationButton_OnClick" />
+                                </Grid>
+                            </Border>
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="Deine Aufgaben" FontSize="18" FontWeight="SemiBold" />
+                                <Button Grid.Column="1" Content="Alle Aufgaben" Tag="tasks" Padding="13,7"
                                         Style="{StaticResource SecondaryButtonStyle}" Click="NavigationButton_OnClick" />
-                                <Button Content="Manage tasks" Tag="tasks" Margin="0,0,10,10"
-                                        Style="{StaticResource SecondaryButtonStyle}" Click="NavigationButton_OnClick" />
-                                <Button Content="Review invoices" Tag="invoices" Margin="0,0,10,10"
-                                        Style="{StaticResource SecondaryButtonStyle}" Click="NavigationButton_OnClick" />
-                            </WrapPanel>
+                            </Grid>
+                            <TextBlock Text="Heute und überfällige Aufgaben in zeitlicher Reihenfolge"
+                                       Foreground="{StaticResource MutedTextBrush}" Margin="0,5,0,12" />
+                            <TextBlock x:Name="TodayTasksEmptyText" Text="Für heute ist nichts mehr offen."
+                                       Visibility="Collapsed" Foreground="{StaticResource MutedTextBrush}"
+                                       FontSize="14" Margin="0,14,0,0" />
+                            <ListBox x:Name="TodayTasksList" Background="Transparent" BorderThickness="0"
+                                     SelectionChanged="TodayTasksList_OnSelectionChanged">
+                                <ListBox.ItemContainerStyle>
+                                    <Style TargetType="ListBoxItem">
+                                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                        <Setter Property="Padding" Value="0" />
+                                        <Setter Property="Margin" Value="0,0,0,9" />
+                                        <Setter Property="Background" Value="Transparent" />
+                                        <Setter Property="BorderThickness" Value="0" />
+                                    </Style>
+                                </ListBox.ItemContainerStyle>
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Style="{StaticResource CardStyle}" Padding="0">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="112" />
+                                                    <ColumnDefinition Width="5" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Margin="18,15" VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding DayLabel}" FontSize="11" FontWeight="SemiBold"
+                                                               Foreground="{StaticResource MutedTextBrush}" />
+                                                    <TextBlock Text="{Binding TimeLabel}" FontSize="18" FontWeight="SemiBold" Margin="0,2,0,0" />
+                                                </StackPanel>
+                                                <Border Grid.Column="1" Background="{Binding Accent}" />
+                                                <StackPanel Grid.Column="2" Margin="20,14" VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock Text="{Binding Meta}" Foreground="{StaticResource MutedTextBrush}" Margin="0,4,0,0" />
+                                                </StackPanel>
+                                                <Border Grid.Column="3" Background="#EFF6FF" CornerRadius="12" Padding="11,6"
+                                                        Margin="12" VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding Duration}" Foreground="#1D4ED8" FontWeight="SemiBold" />
+                                                </Border>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                            <TextBlock x:Name="DashboardServerText" Visibility="Collapsed" />
+                            <TextBlock x:Name="IntegrationVersionText" Visibility="Collapsed" />
                         </StackPanel>
                     </ScrollViewer>
 
@@ -279,14 +285,14 @@
                         <Border Grid.Row="0" Style="{StaticResource CardStyle}" Padding="16,12" Margin="0,0,0,12">
                             <DockPanel LastChildFill="True">
                                 <WrapPanel DockPanel.Dock="Left">
-                                    <Button x:Name="RefreshModuleButton" Content="Refresh"
+                                    <Button x:Name="RefreshModuleButton" Content="Aktualisieren"
                                             Style="{StaticResource SecondaryButtonStyle}"
                                             Click="RefreshModuleButton_OnClick" Margin="0,0,8,0" />
-                                    <Button x:Name="NewRecordButton" Content="New"
+                                    <Button x:Name="NewRecordButton" Content="Neu"
                                             Click="NewRecordButton_OnClick" Margin="0,0,8,0" />
-                                    <Button x:Name="SaveRecordButton" Content="Save"
+                                    <Button x:Name="SaveRecordButton" Content="Speichern"
                                             Click="SaveRecordButton_OnClick" Margin="0,0,8,0" />
-                                    <Button x:Name="ArchiveRecordButton" Content="Archive"
+                                    <Button x:Name="ArchiveRecordButton" Content="Archivieren"
                                             Style="{StaticResource SecondaryButtonStyle}"
                                             Click="ArchiveRecordButton_OnClick" Margin="0,0,8,0" />
                                 </WrapPanel>
@@ -296,7 +302,7 @@
                                              TextChanged="ModuleSearchBox_OnTextChanged" />
                                     <CheckBox x:Name="IncludeArchivedBox" Content="Archived"
                                               Margin="12,0,0,0" VerticalAlignment="Center"
-                                              Foreground="#C8D2E3"
+                                              Foreground="{StaticResource TextBrush}"
                                               Checked="IncludeArchivedBox_OnChanged"
                                               Unchecked="IncludeArchivedBox_OnChanged" />
                                 </StackPanel>
@@ -308,31 +314,24 @@
                         <Border x:Name="ContextActionsPanel" Grid.Row="1"
                                 Style="{StaticResource CardStyle}" Padding="14,10" Margin="0,0,0,12">
                             <WrapPanel>
-                                <ComboBox x:Name="TaskStatusFilterBox" Width="145" Margin="0,0,8,0"
-                                          SelectionChanged="TaskFilterBox_OnChanged" SelectedIndex="0">
-                                    <ComboBoxItem Content="All statuses" Tag="" />
-                                    <ComboBoxItem Content="Open" Tag="open" />
-                                    <ComboBoxItem Content="In progress" Tag="in_progress" />
-                                    <ComboBoxItem Content="Completed" Tag="completed" />
-                                    <ComboBoxItem Content="Skipped" Tag="skipped" />
-                                    <ComboBoxItem Content="Cancelled" Tag="cancelled" />
+                                <ComboBox x:Name="TaskStatusFilterBox" Width="165" Margin="0,0,8,0"
+                                          SelectionChanged="TaskFilterBox_OnChanged" SelectedIndex="1">
+                                    <ComboBoxItem Content="Alle Status" Tag="" />
+                                    <ComboBoxItem Content="Offen" Tag="open" />
+                                    <ComboBoxItem Content="In Bearbeitung" Tag="in_progress" />
+                                    <ComboBoxItem Content="Erledigt" Tag="completed" />
+                                    <ComboBoxItem Content="Übersprungen" Tag="skipped" />
+                                    <ComboBoxItem Content="Abgebrochen" Tag="cancelled" />
                                 </ComboBox>
                                 <ComboBox x:Name="TaskSourceFilterBox" Width="155" Margin="0,0,8,0"
                                           SelectionChanged="TaskFilterBox_OnChanged" SelectedIndex="0">
-                                    <ComboBoxItem Content="All sources" Tag="" />
-                                    <ComboBoxItem Content="Routines" Tag="routine" />
-                                    <ComboBoxItem Content="Manual" Tag="manual" />
-                                    <ComboBoxItem Content="Dunning" Tag="accounting_due_batch" />
+                                    <ComboBoxItem Content="Alle Quellen" Tag="" />
+                                    <ComboBoxItem Content="Routinen" Tag="routine" />
+                                    <ComboBoxItem Content="Manuell" Tag="manual" />
+                                    <ComboBoxItem Content="Zahlung &amp; Mahnung" Tag="accounting_due_batch" />
                                 </ComboBox>
-                                <Button x:Name="NewTaskButton" Content="Manual task"
+                                <Button x:Name="NewTaskButton" Content="Neue Aufgabe"
                                         Click="NewTaskButton_OnClick" Margin="0,0,8,0" />
-                                <ComboBox x:Name="TaskStatusBox" Width="145" Margin="0,0,8,0" SelectedIndex="0">
-                                    <ComboBoxItem Content="open" Tag="open" /><ComboBoxItem Content="in_progress" Tag="in_progress" />
-                                    <ComboBoxItem Content="completed" Tag="completed" /><ComboBoxItem Content="skipped" Tag="skipped" />
-                                    <ComboBoxItem Content="cancelled" Tag="cancelled" />
-                                </ComboBox>
-                                <Button x:Name="SetTaskStatusButton" Content="Set task status"
-                                        Click="SetTaskStatusButton_OnClick" Margin="0,0,8,0" />
                                 <Button x:Name="ImportInvoicesButton" Content="Import CSV"
                                         Click="ImportInvoicesButton_OnClick" Margin="0,0,8,0" />
                                 <Button x:Name="ImportExcelButton" Content="Import Excel"
@@ -395,22 +394,20 @@
 
                         <Grid Grid.Row="2">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="1.05*" MinWidth="330" />
-                                <ColumnDefinition Width="12" />
-                                <ColumnDefinition Width="0.95*" MinWidth="320" />
+                                <ColumnDefinition Width="1.1*" MinWidth="420" />
+                                <ColumnDefinition Width="16" />
+                                <ColumnDefinition Width="1.25*" MinWidth="430" />
                             </Grid.ColumnDefinitions>
                             <Border x:Name="RecordListCard" Grid.Column="0"
                                     Style="{StaticResource CardStyle}" Padding="0">
                                 <DataGrid x:Name="ModuleDataGrid" AutoGenerateColumns="False" IsReadOnly="True"
-                                          SelectionMode="Extended" SelectionChanged="ModuleDataGrid_OnSelectionChanged"
-                                          Background="#111620" Foreground="#E8EDF7" BorderThickness="0"
-                                          GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#2B3342"
-                                          RowBackground="#111620" AlternatingRowBackground="#151B26"
-                                          HeadersVisibility="Column" CanUserAddRows="False">
+                                          SelectionChanged="ModuleDataGrid_OnSelectionChanged"
+                                          HeadersVisibility="Column" CanUserAddRows="False" RowHeight="52"
+                                          ColumnHeaderHeight="44" FontSize="14" SelectionMode="Single">
                                     <DataGrid.Columns>
-                                        <DataGridTextColumn Header="Title" Binding="{Binding Title}" Width="1.5*" />
-                                        <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="*" />
-                                        <DataGridTextColumn Header="Details" Binding="{Binding Detail}" Width="1.4*" />
+                                        <DataGridTextColumn Header="Aufgabe" Binding="{Binding Title}" Width="2.2*" />
+                                        <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="0.75*" />
+                                        <DataGridTextColumn Header="Fällig / Aufwand" Binding="{Binding Detail}" Width="1.35*" />
                                         <DataGridTextColumn x:Name="RevisionColumn" Header="Rev."
                                                             Binding="{Binding Revision}" Width="55" />
                                     </DataGrid.Columns>
@@ -419,7 +416,8 @@
                             <Border x:Name="EditorCard" Grid.Column="2" Style="{StaticResource CardStyle}">
                                 <Grid>
                                     <Grid.RowDefinitions><RowDefinition Height="Auto" />
-                                        <RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                                        <RowDefinition Height="*" /><RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" /></Grid.RowDefinitions>
                                     <StackPanel>
                                         <TextBlock x:Name="EditorTitleText" Text="Record" FontSize="17" FontWeight="SemiBold" />
                                         <TextBlock x:Name="EditorMetaText" Foreground="#718096" FontSize="11" Margin="0,4,0,12" />
@@ -432,7 +430,7 @@
                                                  FontFamily="Cascadia Mono, Consolas" FontSize="12" TextWrapping="NoWrap" />
 
                                         <TextBlock x:Name="FriendlyDetailsText" Visibility="Collapsed"
-                                                   Foreground="#C8D2E3" FontSize="13"
+                                          Foreground="{StaticResource TextBrush}" FontSize="13"
                                                    TextWrapping="Wrap" LineHeight="23" />
 
                                         <ScrollViewer x:Name="ContactEditorPanel" Visibility="Collapsed"
@@ -494,7 +492,7 @@
                                                     </StackPanel>
                                                 </Grid>
                                                 <CheckBox x:Name="TopicEnabledBox" Content="Topic active"
-                                                          Foreground="#E8EDF7" IsChecked="True" Margin="0,0,0,12" />
+                                                          IsChecked="True" Margin="0,0,0,12" />
                                                 <TextBlock Text="Instructions" Margin="0,0,0,5" />
                                                 <TextBox x:Name="TopicInstructionsBox" AcceptsReturn="True" Height="80"
                                                          TextWrapping="Wrap" Margin="0,0,0,12" />
@@ -511,9 +509,7 @@
                                                 </DockPanel>
                                                 <DataGrid x:Name="TopicStepsGrid" AutoGenerateColumns="False"
                                                           CanUserAddRows="False" MinHeight="180" MaxHeight="260"
-                                                          Background="#111620" Foreground="#E8EDF7"
-                                                          RowBackground="#111620" AlternatingRowBackground="#151B26"
-                                                          HorizontalGridLinesBrush="#2B3342" VerticalGridLinesBrush="#2B3342">
+                                                          >
                                                     <DataGrid.Columns>
                                                         <DataGridTextColumn Header="Title *" Binding="{Binding Title, UpdateSourceTrigger=PropertyChanged}" Width="2*" />
                                                         <DataGridCheckBoxColumn Header="Required" Binding="{Binding Required}" Width="65" />
@@ -527,91 +523,108 @@
                                         <ScrollViewer x:Name="RoutineEditorPanel" Visibility="Collapsed"
                                                       VerticalScrollBarVisibility="Auto">
                                             <StackPanel Margin="1">
-                                                <TextBlock Text="Name *" Margin="0,0,0,5" />
+                                                <TextBlock Text="Was soll regelmäßig erledigt werden?" FontSize="16" FontWeight="SemiBold" />
+                                                <TextBlock Text="Aus dieser Routine entsteht automatisch eine Aufgabe."
+                                                           Foreground="{StaticResource MutedTextBrush}" Margin="0,4,0,16" />
+                                                <TextBlock Text="Aufgabe *" Margin="0,0,0,5" />
                                                 <TextBox x:Name="RoutineNameBox" Margin="0,0,0,12" />
-                                                <TextBlock Text="Description" Margin="0,0,0,5" />
-                                                <TextBox x:Name="RoutineDescriptionBox" AcceptsReturn="True" Height="60"
-                                                         TextWrapping="Wrap" Margin="0,0,0,12" />
-                                                <CheckBox x:Name="RoutineEnabledBox" Content="Routine active"
-                                                          IsChecked="True" Foreground="#E8EDF7" Margin="0,0,0,12" />
-                                                <TextBlock Text="Assigned topics *" Margin="0,0,0,5" />
-                                                <ListBox x:Name="RoutineTopicsList" Height="105"
-                                                         Background="#111620" BorderBrush="#39445A" Margin="0,0,0,12">
-                                                    <ListBox.ItemTemplate><DataTemplate>
-                                                        <CheckBox Content="{Binding Name}" IsChecked="{Binding IsSelected}"
-                                                                  Foreground="#E8EDF7" Margin="7,4" />
-                                                    </DataTemplate></ListBox.ItemTemplate>
-                                                </ListBox>
-                                                <Grid Margin="0,0,0,12">
-                                                    <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="10" />
-                                                        <ColumnDefinition Width="90" /></Grid.ColumnDefinitions>
-                                                    <StackPanel><TextBlock Text="Recurrence" Margin="0,0,0,5" />
-                                                        <ComboBox x:Name="RoutineFrequencyBox" SelectedIndex="3">
-                                                            <ComboBoxItem Content="Once" Tag="once" />
-                                                            <ComboBoxItem Content="Daily" Tag="daily" />
-                                                            <ComboBoxItem Content="Weekly" Tag="weekly" />
-                                                            <ComboBoxItem Content="Monthly" Tag="monthly" />
-                                                            <ComboBoxItem Content="Yearly" Tag="yearly" />
-                                                        </ComboBox></StackPanel>
-                                                    <StackPanel Grid.Column="2"><TextBlock Text="Interval" Margin="0,0,0,5" />
-                                                        <TextBox x:Name="RoutineIntervalBox" Text="1" /></StackPanel>
+                                                <TextBlock Text="Kurze Beschreibung (optional)" Margin="0,0,0,5" />
+                                                <TextBox x:Name="RoutineDescriptionBox" AcceptsReturn="True" Height="68"
+                                                         TextWrapping="Wrap" Margin="0,0,0,14" />
+                                                <Grid Margin="0,0,0,18">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="12" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                                                    <StackPanel><TextBlock Text="Geschätzte Dauer" Margin="0,0,0,5" />
+                                                        <DockPanel><TextBox x:Name="RoutineEstimatedMinutesBox" Text="15" MinWidth="90" />
+                                                            <TextBlock Text="Minuten" Margin="9,0,0,0" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" /></DockPanel>
+                                                    </StackPanel>
+                                                    <StackPanel Grid.Column="2"><TextBlock Text="Priorität der Aufgabe" Margin="0,0,0,5" />
+                                                        <ComboBox x:Name="RoutinePriorityBox" SelectedIndex="1"
+                                                                  SelectionChanged="RoutinePriorityBox_OnSelectionChanged">
+                                                            <ComboBoxItem Content="Niedrig" Tag="low" /><ComboBoxItem Content="Normal" Tag="normal" />
+                                                            <ComboBoxItem Content="Hoch" Tag="high" /><ComboBoxItem Content="Kritisch" Tag="critical" />
+                                                        </ComboBox>
+                                                        <TextBlock x:Name="RoutinePriorityHintText" Text="Neue Aufgaben erhalten die Priorität Normal."
+                                                                   Foreground="{StaticResource MutedTextBrush}" FontSize="11" Margin="0,5,0,0" />
+                                                    </StackPanel>
                                                 </Grid>
+
+                                                <TextBlock Text="Wann soll die Aufgabe erscheinen?" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,12" />
+                                                <TextBlock Text="Wiederholung" Margin="0,0,0,5" />
+                                                <ComboBox x:Name="RoutineFrequencyBox" SelectedIndex="3" Margin="0,0,0,12"
+                                                          SelectionChanged="RoutineFrequencyBox_OnSelectionChanged">
+                                                    <ComboBoxItem Content="Einmalig" Tag="once" />
+                                                    <ComboBoxItem Content="Täglich" Tag="daily" />
+                                                    <ComboBoxItem Content="Wöchentlich" Tag="weekly" />
+                                                    <ComboBoxItem Content="Monatlich" Tag="monthly" />
+                                                    <ComboBoxItem Content="Jährlich" Tag="yearly" />
+                                                </ComboBox>
                                                 <Grid Margin="0,0,0,12">
-                                                    <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="8" />
-                                                        <ColumnDefinition /><ColumnDefinition Width="8" /><ColumnDefinition /></Grid.ColumnDefinitions>
-                                                    <StackPanel><TextBlock Text="Start date" Margin="0,0,0,5" />
-                                                        <TextBox x:Name="RoutineStartDateBox" /></StackPanel>
-                                                    <StackPanel Grid.Column="2"><TextBlock Text="End date" Margin="0,0,0,5" />
-                                                        <TextBox x:Name="RoutineEndDateBox" /></StackPanel>
-                                                    <StackPanel Grid.Column="4"><TextBlock Text="Due at" Margin="0,0,0,5" />
-                                                        <TextBox x:Name="RoutineDueTimeBox" Text="09:00" /></StackPanel>
-                                                </Grid>
-                                                <TextBlock Text="Weekdays (for weekly)" Margin="0,0,0,5" />
-                                                <WrapPanel Margin="0,0,0,12">
-                                                    <CheckBox x:Name="RoutineMondayBox" Content="Mo" Foreground="#E8EDF7" Margin="0,0,12,0" />
-                                                    <CheckBox x:Name="RoutineTuesdayBox" Content="Di" Foreground="#E8EDF7" Margin="0,0,12,0" />
-                                                    <CheckBox x:Name="RoutineWednesdayBox" Content="Mi" Foreground="#E8EDF7" Margin="0,0,12,0" />
-                                                    <CheckBox x:Name="RoutineThursdayBox" Content="Do" Foreground="#E8EDF7" Margin="0,0,12,0" />
-                                                    <CheckBox x:Name="RoutineFridayBox" Content="Fr" Foreground="#E8EDF7" Margin="0,0,12,0" />
-                                                    <CheckBox x:Name="RoutineSaturdayBox" Content="Sa" Foreground="#E8EDF7" Margin="0,0,12,0" />
-                                                    <CheckBox x:Name="RoutineSundayBox" Content="So" Foreground="#E8EDF7" />
-                                                </WrapPanel>
-                                                <Grid Margin="0,0,0,12">
-                                                    <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="8" /><ColumnDefinition /></Grid.ColumnDefinitions>
-                                                    <StackPanel><TextBlock Text="Month days (for example 1,15)" Margin="0,0,0,5" />
-                                                        <TextBox x:Name="RoutineMonthDaysBox" /></StackPanel>
-                                                    <StackPanel Grid.Column="2"><TextBlock Text="Months (1–12)" Margin="0,0,0,5" />
-                                                        <TextBox x:Name="RoutineMonthsBox" /></StackPanel>
-                                                </Grid>
-                                                <TextBlock Text="Explicit dates (YYYY-MM-DD, comma-separated)" Margin="0,0,0,5" />
-                                                <TextBox x:Name="RoutineDatesBox" Margin="0,0,0,12" />
-                                                <Grid Margin="0,0,0,12">
-                                                    <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="8" /><ColumnDefinition /></Grid.ColumnDefinitions>
-                                                    <StackPanel><TextBlock Text="Weekend rule" Margin="0,0,0,5" />
-                                                        <ComboBox x:Name="RoutineBusinessDayBox" SelectedIndex="0">
-                                                            <ComboBoxItem Content="None" Tag="none" />
-                                                            <ComboBoxItem Content="Previous business day" Tag="previous_business_day" />
-                                                            <ComboBoxItem Content="Next business day" Tag="next_business_day" />
-                                                        </ComboBox></StackPanel>
-                                                    <StackPanel Grid.Column="2"><TextBlock Text="Invalid month day" Margin="0,0,0,5" />
-                                                        <ComboBox x:Name="RoutineInvalidDayBox" SelectedIndex="0">
-                                                            <ComboBoxItem Content="Skip" Tag="skip" />
-                                                            <ComboBoxItem Content="Last day of month" Tag="last_day" />
+                                                    <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="12" /><ColumnDefinition Width="145" /></Grid.ColumnDefinitions>
+                                                    <StackPanel><TextBlock Text="Beginnt am" Margin="0,0,0,5" />
+                                                        <DatePicker x:Name="RoutineStartDatePicker" SelectedDateFormat="Long" /></StackPanel>
+                                                    <StackPanel Grid.Column="2"><TextBlock Text="Uhrzeit" Margin="0,0,0,5" />
+                                                        <ComboBox x:Name="RoutineDueTimeBox" IsEditable="True" Text="09:00">
+                                                            <ComboBoxItem Content="08:00" /><ComboBoxItem Content="09:00" />
+                                                            <ComboBoxItem Content="10:00" /><ComboBoxItem Content="12:00" />
+                                                            <ComboBoxItem Content="14:00" /><ComboBoxItem Content="16:00" />
                                                         </ComboBox></StackPanel>
                                                 </Grid>
-                                                <Grid>
-                                                    <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="8" /><ColumnDefinition /></Grid.ColumnDefinitions>
-                                                    <StackPanel><TextBlock Text="Reminder days (-1,0)" Margin="0,0,0,5" />
-                                                        <TextBox x:Name="RoutineRemindersBox" Text="-1,0" /></StackPanel>
-                                                    <StackPanel Grid.Column="2"><TextBlock Text="Catch-up rule" Margin="0,0,0,5" />
-                                                        <ComboBox x:Name="RoutineCatchUpBox" SelectedIndex="0">
-                                                            <ComboBoxItem Content="Configured window" Tag="configured_window" />
-                                                            <ComboBoxItem Content="Only latest occurrence" Tag="latest_only" />
-                                                            <ComboBoxItem Content="Skip missed" Tag="skip_missed" />
-                                                        </ComboBox></StackPanel>
+
+                                                <StackPanel x:Name="RoutineWeekdayPanel" Visibility="Collapsed" Margin="0,0,0,12">
+                                                    <TextBlock Text="An diesen Wochentagen" Margin="0,0,0,7" />
+                                                    <WrapPanel>
+                                                        <CheckBox x:Name="RoutineMondayBox" Content="Mo" Margin="0,0,15,0" />
+                                                        <CheckBox x:Name="RoutineTuesdayBox" Content="Di" Margin="0,0,15,0" />
+                                                        <CheckBox x:Name="RoutineWednesdayBox" Content="Mi" Margin="0,0,15,0" />
+                                                        <CheckBox x:Name="RoutineThursdayBox" Content="Do" Margin="0,0,15,0" />
+                                                        <CheckBox x:Name="RoutineFridayBox" Content="Fr" Margin="0,0,15,0" />
+                                                        <CheckBox x:Name="RoutineSaturdayBox" Content="Sa" Margin="0,0,15,0" />
+                                                        <CheckBox x:Name="RoutineSundayBox" Content="So" />
+                                                    </WrapPanel>
+                                                </StackPanel>
+                                                <StackPanel x:Name="RoutineMonthDayPanel" Margin="0,0,0,12">
+                                                    <TextBlock Text="Am Tag des Monats" Margin="0,0,0,5" />
+                                                    <ComboBox x:Name="RoutineMonthDaysBox" IsEditable="True" Text="1">
+                                                        <ComboBoxItem Content="1"/><ComboBoxItem Content="2"/><ComboBoxItem Content="3"/><ComboBoxItem Content="4"/><ComboBoxItem Content="5"/><ComboBoxItem Content="6"/><ComboBoxItem Content="7"/><ComboBoxItem Content="8"/><ComboBoxItem Content="9"/><ComboBoxItem Content="10"/>
+                                                        <ComboBoxItem Content="11"/><ComboBoxItem Content="12"/><ComboBoxItem Content="13"/><ComboBoxItem Content="14"/><ComboBoxItem Content="15"/><ComboBoxItem Content="16"/><ComboBoxItem Content="17"/><ComboBoxItem Content="18"/><ComboBoxItem Content="19"/><ComboBoxItem Content="20"/>
+                                                        <ComboBoxItem Content="21"/><ComboBoxItem Content="22"/><ComboBoxItem Content="23"/><ComboBoxItem Content="24"/><ComboBoxItem Content="25"/><ComboBoxItem Content="26"/><ComboBoxItem Content="27"/><ComboBoxItem Content="28"/><ComboBoxItem Content="29"/><ComboBoxItem Content="30"/><ComboBoxItem Content="31"/>
+                                                    </ComboBox>
+                                                </StackPanel>
+                                                <StackPanel x:Name="RoutineYearMonthPanel" Visibility="Collapsed" Margin="0,0,0,12">
+                                                    <TextBlock Text="Im Monat (1–12)" Margin="0,0,0,5" />
+                                                    <ComboBox x:Name="RoutineMonthsBox" IsEditable="True" Text="1">
+                                                        <ComboBoxItem Content="1"/><ComboBoxItem Content="2"/><ComboBoxItem Content="3"/><ComboBoxItem Content="4"/><ComboBoxItem Content="5"/><ComboBoxItem Content="6"/>
+                                                        <ComboBoxItem Content="7"/><ComboBoxItem Content="8"/><ComboBoxItem Content="9"/><ComboBoxItem Content="10"/><ComboBoxItem Content="11"/><ComboBoxItem Content="12"/>
+                                                    </ComboBox>
+                                                </StackPanel>
+
+                                                <Expander Header="Weitere Einstellungen" Margin="0,3,0,14">
+                                                    <StackPanel Margin="0,10,0,0">
+                                                        <TextBlock Text="Endet am (optional)" Margin="0,0,0,5" />
+                                                        <DatePicker x:Name="RoutineEndDatePicker" SelectedDateFormat="Long" Margin="0,0,0,12" />
+                                                        <TextBlock Text="Wenn der Termin auf ein Wochenende fällt" Margin="0,0,0,5" />
+                                                        <ComboBox x:Name="RoutineBusinessDayBox" SelectedIndex="0" Margin="0,0,0,12">
+                                                            <ComboBoxItem Content="Nicht verschieben" Tag="none" />
+                                                            <ComboBoxItem Content="Auf vorherigen Werktag" Tag="previous_business_day" />
+                                                            <ComboBoxItem Content="Auf nächsten Werktag" Tag="next_business_day" />
+                                                        </ComboBox>
+                                                        <TextBlock Text="Erinnerungen in Tagen, z. B. -1,0" Margin="0,0,0,5" />
+                                                        <TextBox x:Name="RoutineRemindersBox" Text="-1,0" />
+                                                    </StackPanel>
+                                                </Expander>
+                                                <CheckBox x:Name="RoutineEnabledBox" Content="Routine ist aktiv"
+                                                          IsChecked="True" Margin="0,0,0,8" />
+
+                                                <Grid Visibility="Collapsed">
+                                                    <TextBox x:Name="RoutineIntervalBox" Text="1" />
+                                                    <TextBox x:Name="RoutineStartDateBox" />
+                                                    <TextBox x:Name="RoutineEndDateBox" />
+                                                    <TextBox x:Name="RoutineDatesBox" />
+                                                    <ComboBox x:Name="RoutineInvalidDayBox" SelectedIndex="1"><ComboBoxItem Tag="skip"/><ComboBoxItem Tag="last_day"/></ComboBox>
+                                                    <ComboBox x:Name="RoutineCatchUpBox" SelectedIndex="0"><ComboBoxItem Tag="configured_window"/></ComboBox>
+                                                    <TextBox x:Name="RoutineTimezoneBox" Text="Europe/Berlin" />
+                                                    <ListBox x:Name="RoutineTopicsList" />
                                                 </Grid>
-                                                <TextBlock Text="Time zone" Margin="0,12,0,5" />
-                                                <TextBox x:Name="RoutineTimezoneBox" Text="Europe/Berlin" />
                                             </StackPanel>
                                         </ScrollViewer>
 
@@ -621,25 +634,36 @@
                                                 <TextBlock Text="Title *" Margin="0,0,0,5" />
                                                 <TextBox x:Name="TaskTitleBox" Margin="0,0,0,12" />
                                                 <TextBlock Text="Description" Margin="0,0,0,5" />
-                                                <TextBox x:Name="TaskDescriptionBox" AcceptsReturn="True" Height="60"
+                                                <TextBox x:Name="TaskDescriptionBox" AcceptsReturn="True" Height="82"
                                                          TextWrapping="Wrap" Margin="0,0,0,12" />
                                                 <Grid Margin="0,0,0,12">
-                                                    <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="8" />
-                                                        <ColumnDefinition /><ColumnDefinition Width="8" /><ColumnDefinition /></Grid.ColumnDefinitions>
-                                                    <StackPanel><TextBlock Text="Due date" Margin="0,0,0,5" />
-                                                        <TextBox x:Name="TaskDueAtBox" /></StackPanel>
-                                                    <StackPanel Grid.Column="2"><TextBlock Text="Priority" Margin="0,0,0,5" />
+                                                    <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="10" />
+                                                        <ColumnDefinition Width="135" /></Grid.ColumnDefinitions>
+                                                    <StackPanel><TextBlock Text="Fällig am" Margin="0,0,0,5" />
+                                                        <DatePicker x:Name="TaskDueDatePicker" SelectedDateFormat="Long" /></StackPanel>
+                                                    <StackPanel Grid.Column="2"><TextBlock Text="Uhrzeit" Margin="0,0,0,5" />
+                                                        <ComboBox x:Name="TaskDueTimeBox" IsEditable="True" Text="09:00">
+                                                            <ComboBoxItem Content="08:00" /><ComboBoxItem Content="09:00" />
+                                                            <ComboBoxItem Content="10:00" /><ComboBoxItem Content="12:00" />
+                                                            <ComboBoxItem Content="14:00" /><ComboBoxItem Content="16:00" />
+                                                            <ComboBoxItem Content="18:00" />
+                                                        </ComboBox></StackPanel>
+                                                </Grid>
+                                                <Grid Margin="0,0,0,12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="10" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                                                    <StackPanel><TextBlock Text="Priority" Margin="0,0,0,5" />
                                                         <ComboBox x:Name="TaskPriorityBox" SelectedIndex="1">
                                                             <ComboBoxItem Content="Low" Tag="low" /><ComboBoxItem Content="Normal" Tag="normal" />
                                                             <ComboBoxItem Content="High" Tag="high" /><ComboBoxItem Content="Critical" Tag="critical" />
                                                         </ComboBox></StackPanel>
-                                                    <StackPanel Grid.Column="4"><TextBlock Text="Status" Margin="0,0,0,5" />
-                                                        <ComboBox x:Name="TaskEditorStatusBox" SelectedIndex="0">
-                                                            <ComboBoxItem Content="Open" Tag="open" /><ComboBoxItem Content="In progress" Tag="in_progress" />
-                                                            <ComboBoxItem Content="Completed" Tag="completed" /><ComboBoxItem Content="Skipped" Tag="skipped" />
-                                                            <ComboBoxItem Content="Cancelled" Tag="cancelled" />
-                                                        </ComboBox></StackPanel>
+                                                    <StackPanel Grid.Column="2"><TextBlock Text="Aufwand (Minuten)" Margin="0,0,0,5" />
+                                                        <TextBox x:Name="TaskEstimatedMinutesBox" Text="15" /></StackPanel>
                                                 </Grid>
+                                                <ComboBox x:Name="TaskEditorStatusBox" SelectedIndex="0" Visibility="Collapsed">
+                                                    <ComboBoxItem Content="Open" Tag="open" /><ComboBoxItem Content="In progress" Tag="in_progress" />
+                                                    <ComboBoxItem Content="Completed" Tag="completed" /><ComboBoxItem Content="Skipped" Tag="skipped" />
+                                                    <ComboBoxItem Content="Cancelled" Tag="cancelled" />
+                                                </ComboBox>
                                                 <TextBlock Text="Category" Margin="0,0,0,5" />
                                                 <TextBox x:Name="TaskCategoryBox" Margin="0,0,0,12" />
                                                 <TextBlock Text="Completion note" Margin="0,0,0,5" />
@@ -656,8 +680,7 @@
                                                     </StackPanel>
                                                 </DockPanel>
                                                 <DataGrid x:Name="TaskChecklistGrid" AutoGenerateColumns="False" CanUserAddRows="False"
-                                                          MinHeight="180" MaxHeight="270" Background="#111620" Foreground="#E8EDF7"
-                                                          RowBackground="#111620" AlternatingRowBackground="#151B26">
+                                                          MinHeight="180" MaxHeight="270">
                                                     <DataGrid.Columns>
                                                         <DataGridCheckBoxColumn Header="Completed" Binding="{Binding Completed}" Width="70" />
                                                         <DataGridCheckBoxColumn x:Name="TaskChecklistRequiredColumn" Header="Required"
@@ -670,7 +693,29 @@
                                             </StackPanel>
                                         </ScrollViewer>
                                     </Grid>
-                                    <TextBlock x:Name="EditorHelpText" Grid.Row="2" Foreground="#718096"
+                                    <Grid x:Name="TaskActionPanel" Grid.Row="2" Margin="0,16,0,0" Visibility="Collapsed">
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                        <StackPanel Orientation="Horizontal">
+                                            <ComboBox x:Name="TaskStatusBox" Width="165" SelectedIndex="0" Margin="0,0,8,0">
+                                                <ComboBoxItem Content="Offen" Tag="open" />
+                                                <ComboBoxItem Content="In Bearbeitung" Tag="in_progress" />
+                                                <ComboBoxItem Content="Erledigt" Tag="completed" />
+                                                <ComboBoxItem Content="Übersprungen" Tag="skipped" />
+                                                <ComboBoxItem Content="Abgebrochen" Tag="cancelled" />
+                                            </ComboBox>
+                                            <Button x:Name="SetTaskStatusButton" Content="Status ändern"
+                                                    Style="{StaticResource SecondaryButtonStyle}"
+                                                    Click="SetTaskStatusButton_OnClick" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                            <Button x:Name="DeleteTaskButton" Content="Löschen" Margin="0,0,8,0"
+                                                    Background="#FEE2E2" Foreground="#B91C1C"
+                                                    Click="DeleteTaskButton_OnClick" />
+                                            <Button x:Name="TaskSaveButton" Content="Änderungen speichern"
+                                                    Click="SaveRecordButton_OnClick" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <TextBlock x:Name="EditorHelpText" Grid.Row="3" Foreground="#718096"
                                                FontSize="11" Margin="0,10,0,0" TextWrapping="Wrap" />
                                 </Grid>
                             </Border>

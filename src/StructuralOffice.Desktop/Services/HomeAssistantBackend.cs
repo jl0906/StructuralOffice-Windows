@@ -126,9 +126,20 @@ public sealed class HomeAssistantBackend : IStructuralOfficeDataBackend, IDispos
         bool includeArchived = false,
         CancellationToken cancellationToken = default)
     {
-        var suffix = includeArchived ? "?include_archived=true&limit=500" : "?limit=500";
-        var root = await GetJsonAsync($"live/{Escape(collection)}{suffix}", cancellationToken);
-        return ParsePage(root, "items", liveEnvelope: true);
+        var items = new List<BackendRecord>();
+        var total = 0;
+        do
+        {
+            var archived = includeArchived ? "&include_archived=true" : string.Empty;
+            var root = await GetJsonAsync(
+                $"live/{Escape(collection)}?limit=500&offset={items.Count}{archived}",
+                cancellationToken);
+            var page = ParsePage(root, "items", liveEnvelope: true);
+            total = page.Total;
+            items.AddRange(page.Items);
+            if (page.Items.Count == 0) break;
+        } while (items.Count < total);
+        return new BackendPage(items, total, items.Count, 0);
     }
 
     public async Task<BackendRecord> CreateRecordAsync(
@@ -218,7 +229,19 @@ public sealed class HomeAssistantBackend : IStructuralOfficeDataBackend, IDispos
         var query = new List<string> { "limit=500" };
         if (!string.IsNullOrWhiteSpace(status)) query.Add($"status={Escape(status)}");
         if (!string.IsNullOrWhiteSpace(sourceType)) query.Add($"source_type={Escape(sourceType)}");
-        return ParsePage(await GetJsonAsync($"tasks?{string.Join('&', query)}", cancellationToken), "items");
+        var items = new List<BackendRecord>();
+        var total = 0;
+        do
+        {
+            var pageQuery = new List<string>(query) { $"offset={items.Count}" };
+            var page = ParsePage(
+                await GetJsonAsync($"tasks?{string.Join('&', pageQuery)}", cancellationToken),
+                "items");
+            total = page.Total;
+            items.AddRange(page.Items);
+            if (page.Items.Count == 0) break;
+        } while (items.Count < total);
+        return new BackendPage(items, total, items.Count, 0);
     }
 
     public async Task<BackendRecord> GetTaskAsync(
@@ -241,6 +264,27 @@ public sealed class HomeAssistantBackend : IStructuralOfficeDataBackend, IDispos
             ["expected_revision"] = revision,
             ["data"] = data.DeepClone()
         }, cancellationToken));
+
+    public Task<JsonObject> GetTodayDashboardAsync(
+        CancellationToken cancellationToken = default) =>
+        GetJsonAsync("dashboard/today", cancellationToken);
+
+    public Task<JsonObject> ScheduleDunningAsync(
+        string id, int revision, string dueDate,
+        CancellationToken cancellationToken = default) =>
+        SendJsonAsync(HttpMethod.Post, $"tasks/{Escape(id)}/schedule-dunning", new JsonObject
+        {
+            ["expected_revision"] = revision,
+            ["due_date"] = dueDate
+        }, cancellationToken);
+
+    public async Task<BackendRecord> ConfirmSettledAsync(
+        string id, int revision, CancellationToken cancellationToken = default) =>
+        ParseRecord(await SendJsonAsync(
+            HttpMethod.Post, $"tasks/{Escape(id)}/confirm-settled", new JsonObject
+            {
+                ["expected_revision"] = revision
+            }, cancellationToken));
 
     public async Task<BackendRecord> UpdateTaskChecklistItemAsync(
         string taskId,

@@ -20,29 +20,27 @@ is selected, the refresh token is stored in Windows Credential Manager and excha
 for a short-lived access token at application startup.
 
 After authentication, the native application shell shows the verified Home Assistant
-and StructuralOffice status on its dashboard. Version `0.8.0-alpha` requires the
-StructuralOffice Home Assistant integration `0.7.1-alpha` or newer and provides:
+and StructuralOffice status on its dashboard. Version `0.9.3-beta` is designed for the
+StructuralOffice Home Assistant integration `0.9.1-beta` and provides:
 
-- revision-safe create, edit, presence, and archive workflows for contacts, topics,
-  routines, and invoices;
-- materialized task status updates and accounting-task membership views;
-- native routine scheduling with topic assignments, recurrence rules, reminders,
+- a focused daily dashboard with today's estimated workload, longest due task, and a
+  calendar-style list of today's and overdue tasks;
+- complete paginated invoice loading with an open-balance-only working view;
+- readable task lists with friendly dates, duration estimates, and localized titles;
+- guided payment-reminder completion that schedules the matching dunning task;
+- explicit confirmation before a fully paid invoice range closes its dunning task;
+- native routine scheduling without required topic assignments, with recurrence rules,
+  priority, estimated duration, reminders,
   catch-up behavior, and business-day handling;
 - native task filters and editors for manual tasks, due dates, status, priority,
   completion notes, and checklist progress;
 - reconnecting live updates for the currently open module;
 - CSV and Excel invoice preview/import plus CSV, Excel, and template export;
-- payment-reminder and dunning-document generation for one or several invoices;
-- accounting escalation-rule editing;
-- administrator access to user roles, backups, restore/download/delete operations,
-  test notifications, audit entries, and persisted change events.
+- revision-safe background synchronization and reconnecting live updates.
 
-Topics, routines, tasks, and invoices use native, validated forms in `0.8.0-alpha`.
-Contacts, documents, and dunning are marked as coming soon while their workflows are
-being redesigned.
-Data modules support text search and an optional archived-record view. The remaining
-modules retain the technical record editor until their dedicated forms arrive in
-subsequent releases.
+The primary navigation deliberately concentrates on Today, Tasks, Routines, invoice
+import, and Settings. Contacts, topics, document generation, and technical administration
+are not part of the beta's main workflow.
 
 ## Build an installable package
 

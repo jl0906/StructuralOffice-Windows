@@ -12,6 +12,8 @@ public sealed class RoutineRecordModel
     public string Name { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     public bool Enabled { get; set; } = true;
+    public int EstimatedMinutes { get; set; } = 15;
+    public string Priority { get; set; } = "normal";
     public List<string> TopicIds { get; set; } = [];
     public string Frequency { get; set; } = "monthly";
     public int Interval { get; set; } = 1;
@@ -37,6 +39,8 @@ public sealed class RoutineRecordModel
             Name = Text(value, "name"),
             Description = Text(value, "description"),
             Enabled = Boolean(value, "enabled", true),
+            EstimatedMinutes = Integer(value, "estimated_minutes", 15),
+            Priority = Text(value, "priority") is { Length: > 0 } priority ? priority : "normal",
             TopicIds = Strings(value["topic_ids"] as JsonArray),
             DueTime = Text(value, "due_time") is { Length: > 0 } due ? due : "09:00",
             Timezone = Text(value, "timezone") is { Length: > 0 } zone ? zone : "Europe/Berlin",
@@ -68,6 +72,8 @@ public sealed class RoutineRecordModel
             ["name"] = Name.Trim(),
             ["description"] = Description.Trim(),
             ["enabled"] = Enabled,
+            ["estimated_minutes"] = EstimatedMinutes,
+            ["priority"] = Priority,
             ["topic_ids"] = Array(TopicIds),
             ["due_time"] = DueTime.Trim(),
             ["timezone"] = Timezone.Trim(),
@@ -96,9 +102,13 @@ public sealed class RoutineRecordModel
         if (string.IsNullOrWhiteSpace(Name))
             throw new InvalidDataException(UiLocalization.Choose(
                 "Enter a routine name.", "Bitte einen Namen für die Routine eingeben."));
-        if (TopicIds.Count == 0)
+        if (EstimatedMinutes is < 1 or > 1440)
             throw new InvalidDataException(UiLocalization.Choose(
-                "Select at least one topic.", "Bitte mindestens ein Thema auswählen."));
+                "The estimate must be between 1 and 1440 minutes.",
+                "Der geschätzte Aufwand muss zwischen 1 und 1440 Minuten liegen."));
+        if (Priority is not ("low" or "normal" or "high" or "critical"))
+            throw new InvalidDataException(UiLocalization.Choose(
+                "The routine priority is invalid.", "Die Priorität der Routine ist ungültig."));
         if (Frequency is not ("once" or "daily" or "weekly" or "monthly" or "yearly"))
             throw new InvalidDataException(UiLocalization.Choose(
                 "The recurrence type is invalid.", "Die Wiederholungsart ist ungültig."));
