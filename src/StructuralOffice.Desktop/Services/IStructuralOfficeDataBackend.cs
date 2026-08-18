@@ -13,12 +13,6 @@ public interface IStructuralOfficeDataBackend : IStructuralOfficeBackend
         JsonObject data, CancellationToken cancellationToken = default);
     Task<BackendRecord> ArchiveRecordAsync(string collection, string id, int revision,
         CancellationToken cancellationToken = default);
-    Task<JsonObject> GetEditorsAsync(string collection, string id,
-        CancellationToken cancellationToken = default);
-    Task<JsonObject> StartEditingAsync(string collection, string id, string? sessionId = null,
-        CancellationToken cancellationToken = default);
-    Task EndEditingAsync(string collection, string id, string sessionId,
-        CancellationToken cancellationToken = default);
     Task<BackendPage> GetTasksAsync(string? status = null, string? sourceType = null,
         CancellationToken cancellationToken = default);
     Task<BackendRecord> GetTaskAsync(string id, CancellationToken cancellationToken = default);

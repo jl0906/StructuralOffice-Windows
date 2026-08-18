@@ -20,8 +20,8 @@ is selected, the refresh token is stored in Windows Credential Manager and excha
 for a short-lived access token at application startup.
 
 After authentication, the native application shell shows the verified Home Assistant
-and StructuralOffice status on its dashboard. Version `1.0.0-rc1` is designed for the
-StructuralOffice Home Assistant integration `0.9.1-beta` and provides:
+and StructuralOffice status on its dashboard. Version `1.0.0` is the stable desktop
+release for the StructuralOffice Home Assistant integration `1.0.0` and provides:
 
 - a focused daily dashboard with today's estimated workload, longest due task, and a
   calendar-style list of today's and overdue tasks;

@@ -103,7 +103,6 @@ public static class UiLocalization
             ["English"] = "Englisch",
             ["German"] = "Deutsch",
             ["Developer mode"] = "Entwicklermodus",
-            ["Editing protection active"] = "Bearbeitungsschutz aktiv",
             ["Technical details"] = "Technische Details",
             ["Title"] = "Titel",
             ["Title *"] = "Titel *",

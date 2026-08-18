@@ -2,7 +2,7 @@
 param([switch]$Quiet)
 
 $ErrorActionPreference = 'Stop'
-$applicationVersion = '1.0.0-rc1'
+$applicationVersion = '1.0.0'
 $nestedPayload = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot 'app'))
 $packageRoot = if (Test-Path -LiteralPath (Join-Path $nestedPayload 'StructuralOffice.exe')) {
     $nestedPayload
@@ -92,7 +92,7 @@ function Show-InstallDialog([string]$defaultPath) {
     $form.Icon = [System.Drawing.Icon]::ExtractAssociatedIcon($payload)
 
     $title = New-Object System.Windows.Forms.Label
-    $title.Text = 'Install StructuralOffice 1.0.0-rc1'
+    $title.Text = 'Install StructuralOffice 1.0.0'
     $title.Font = New-Object System.Drawing.Font('Segoe UI Semibold', 15)
     $title.AutoSize = $true
     $title.Location = New-Object System.Drawing.Point(24, 20)

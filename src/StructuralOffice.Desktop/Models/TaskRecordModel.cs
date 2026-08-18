@@ -49,13 +49,16 @@ public sealed class TaskRecordModel
             var taskType = Text(snapshot, "task_type");
             var openCount = snapshot["invoice_count_open"]?.GetValue<int>() ?? 0;
             var currency = Text(snapshot, "currency");
+            var invoiceRange = Text(snapshot, "invoice_range");
             var subject = taskType == "dunning"
                 ? UiLocalization.Choose("Process dunning notices", "Mahnungen bearbeiten")
                 : UiLocalization.Choose("Process payment reminders", "Zahlungserinnerungen bearbeiten");
             var invoices = UiLocalization.Choose(
                 openCount == 1 ? "invoice" : "invoices",
                 openCount == 1 ? "Rechnung" : "Rechnungen");
-            model.Title = $"{subject} · {openCount} {invoices} · {currency}";
+            model.Title = string.IsNullOrWhiteSpace(invoiceRange)
+                ? $"{subject} · {openCount} {invoices} · {currency}"
+                : $"{subject} · {openCount} {invoices} · {invoiceRange} · {currency}";
             model.Description = UiLocalization.Choose(
                 $"{openCount} overdue open invoices.",
                 $"{openCount} offene überfällige Rechnungen.");

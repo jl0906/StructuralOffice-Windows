@@ -2,6 +2,25 @@
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-08-18
+
+### Added
+
+- One-click task completion in the Today dashboard and annual task list, including the
+  existing confirmation flows for accounting packages.
+
+### Changed
+
+- New routines now retain an explicit creation state until saved, preventing live list
+  refreshes from selecting and overwriting an existing routine.
+- Accounting task titles show invoice count, invoice-number range, and currency.
+- Promoted the Windows application from `1.0.0-rc1` to stable `1.0.0`.
+
+### Removed
+
+- The visible editing-protection indicator and all client-side edit-presence sessions.
+  Revision-safe conflict handling remains active.
+
 ## [1.0.0-rc1] - 2026-08-17
 
 ### Added

@@ -27,16 +27,14 @@ public partial class MainWindow : Window
     private string _currentDataMode = string.Empty;
     private DisplayRecord? _selectedRecord;
     private bool _moduleBusy;
-    private string? _editSessionId;
-    private string? _editRecordId;
-    private string? _editCollection;
+    private bool _creatingRecord;
+    private bool _suppressTodayTaskNavigation;
     private List<DisplayRecord> _allDisplayRows = [];
     private List<BackendRecord> _allYearTaskRecords = [];
     private readonly ObservableCollection<TopicStepModel> _topicSteps = [];
     private readonly ObservableCollection<RoutineTopicOption> _routineTopics = [];
     private readonly ObservableCollection<TaskChecklistItemModel> _taskChecklist = [];
     private CancellationTokenSource? _liveUpdatesCancellation;
-    private CancellationTokenSource? _editPresenceRefreshCancellation;
     private bool _newManualTask;
     private bool _languageReady;
     private bool _developerMode;
@@ -96,7 +94,6 @@ public partial class MainWindow : Window
         Closed += (_, _) =>
         {
             _liveUpdatesCancellation?.Cancel();
-            _editPresenceRefreshCancellation?.Cancel();
             _backend?.Dispose();
         };
     }
@@ -205,7 +202,6 @@ public partial class MainWindow : Window
 
     private async void LogoutButton_OnClick(object sender, RoutedEventArgs eventArgs)
     {
-        await EndCurrentEditSessionCoreAsync();
         _liveUpdatesCancellation?.Cancel();
         _liveUpdatesCancellation = null;
         _credentialStore.DeleteRefreshToken();
@@ -318,7 +314,6 @@ public partial class MainWindow : Window
     {
         if (sender is Button { Tag: string pageKey })
         {
-            await EndCurrentEditSessionCoreAsync();
             await ShowPageAsync(pageKey);
         }
     }
@@ -487,7 +482,10 @@ public partial class MainWindow : Window
                         ? Color.FromRgb(220, 38, 38)
                         : item.Task.Status == "in_progress"
                             ? Color.FromRgb(245, 158, 11)
-                            : Color.FromRgb(37, 99, 235)));
+                            : Color.FromRgb(37, 99, 235)),
+                    item.Task.SourceType != "accounting_due_batch" ||
+                    item.Task.AvailableActions.Any(action =>
+                        action is "schedule_dunning" or "confirm_settled"));
             })
             .ToList();
         TodayTasksList.ItemsSource = tasks;
@@ -511,10 +509,16 @@ public partial class MainWindow : Window
                 ? LocalizeCanonicalTaskTitle(topic) : LocalizeCanonicalTaskTitle(title);
         var count = IntValue(snapshot, "invoice_count_open");
         var currency = FirstText(snapshot, "currency");
+        var range = FirstText(snapshot, "invoice_range");
         var subject = FirstText(snapshot, "task_type") == "dunning"
             ? UiLocalization.Choose("Process dunning notices", "Mahnungen bearbeiten")
             : UiLocalization.Choose("Process payment reminders", "Zahlungserinnerungen bearbeiten");
-        return $"{subject} · {count} {UiLocalization.Choose(count == 1 ? "invoice" : "invoices", count == 1 ? "Rechnung" : "Rechnungen")} · {currency}";
+        var invoices = UiLocalization.Choose(
+            count == 1 ? "invoice" : "invoices",
+            count == 1 ? "Rechnung" : "Rechnungen");
+        return string.IsNullOrWhiteSpace(range)
+            ? $"{subject} · {count} {invoices} · {currency}"
+            : $"{subject} · {count} {invoices} · {range} · {currency}";
     }
 
     private static string LocalizeCanonicalTaskTitle(string title)
@@ -531,6 +535,12 @@ public partial class MainWindow : Window
     private async void TodayTasksList_OnSelectionChanged(
         object sender, SelectionChangedEventArgs eventArgs)
     {
+        if (_suppressTodayTaskNavigation)
+        {
+            TodayTasksList.SelectedItem = null;
+            _suppressTodayTaskNavigation = false;
+            return;
+        }
         if (TodayTasksList.SelectedItem is not TodayTaskItem task) return;
         await ShowPageAsync("tasks");
         var row = TaskYearList.Items.OfType<YearTaskItem>()
@@ -542,6 +552,24 @@ public partial class MainWindow : Window
             TaskYearList.ScrollIntoView(row);
         }
         TodayTasksList.SelectedItem = null;
+    }
+
+    private void TodayTaskCompletionCheckBox_OnPreviewMouseLeftButtonDown(
+        object sender, MouseButtonEventArgs eventArgs) => _suppressTodayTaskNavigation = true;
+
+    private async void TodayTaskCompletionCheckBox_OnClick(object sender, RoutedEventArgs eventArgs)
+    {
+        _suppressTodayTaskNavigation = false;
+        if (sender is not CheckBox { DataContext: TodayTaskItem item } checkBox ||
+            _backend is null || !item.CanComplete)
+            return;
+        checkBox.IsChecked = false;
+        await RunModuleActionAsync(async () =>
+        {
+            if (!await CompleteTaskAsync(item.Id)) return;
+            await LoadDashboardAsync();
+            ModuleBusyText.Text = UiLocalization.Choose("Task completed.", "Aufgabe erledigt.");
+        });
     }
 
     private static void SetNavigationState(Button button, string activePageKey)
@@ -712,7 +740,7 @@ public partial class MainWindow : Window
                 var check = await _backend.CheckAsync();
                 var data = new JsonObject
                 {
-                    ["application_version"] = "1.0.0-rc1",
+                    ["application_version"] = "1.0.0",
                     ["backend"] = _backend.DisplayName,
                     ["integration_version"] = check.IntegrationVersion,
                     ["server"] = _session?.ServerAddress.ToString(),
@@ -759,6 +787,7 @@ public partial class MainWindow : Window
 
     private void LoadRows(IEnumerable<BackendRecord> records)
     {
+        _creatingRecord = false;
         _allDisplayRows = records.Select(CreateDisplayRecord).ToList();
         _selectedRecord = null;
         ClearEditor();
@@ -1004,17 +1033,9 @@ public partial class MainWindow : Window
         if (nextRecord is null)
         {
             _selectedRecord = null;
-            EditorPresenceText.Text = string.Empty;
-            await EndCurrentEditSessionCoreAsync();
             return;
         }
-        var nextCollection = _currentDataMode == "tasks" ? "tasks" : _currentPage;
-        if (!string.IsNullOrWhiteSpace(_editRecordId) &&
-            (!string.Equals(_editRecordId, nextRecord.Record.Id, StringComparison.Ordinal) ||
-             !string.Equals(_editCollection, nextCollection, StringComparison.Ordinal)))
-        {
-            await EndCurrentEditSessionCoreAsync();
-        }
+        _creatingRecord = false;
         _selectedRecord = nextRecord;
         EditorTitleText.Text = _selectedRecord.Title;
         var archived = _selectedRecord.Record.ArchivedAt is not null;
@@ -1056,19 +1077,6 @@ public partial class MainWindow : Window
         if (_currentDataMode == "administration-roles" && _selectedRecord is not null)
         {
             SelectComboValue(RoleBox, FirstText(_selectedRecord.Record.Data, "role"));
-        }
-        var selectedRecord = _selectedRecord;
-        var currentCollection = _currentDataMode == "tasks" ? "tasks" : _currentPage;
-        if (selectedRecord is not null &&
-            string.Equals(selectedRecord.Record.Id, nextRecord.Record.Id, StringComparison.Ordinal) &&
-            string.Equals(currentCollection, nextCollection, StringComparison.Ordinal) &&
-            CanAutomaticallyEdit(selectedRecord.Record))
-        {
-            await BeginAutomaticEditSessionAsync(nextCollection, selectedRecord.Record.Id);
-        }
-        else
-        {
-            EditorPresenceText.Text = string.Empty;
         }
     }
 
@@ -1164,7 +1172,6 @@ public partial class MainWindow : Window
     {
         RecordEditorText.Clear();
         FriendlyDetailsText.Text = string.Empty;
-        EditorPresenceText.Text = string.Empty;
         ContactNameBox.Clear();
         ContactCustomerNumberBox.Clear();
         ContactEmailBox.Clear();
@@ -1289,6 +1296,10 @@ public partial class MainWindow : Window
             };
             var active = item.Task.Status is "open" or "in_progress";
             var overdue = active && due < DateTime.Now;
+            var canComplete = active &&
+                              (item.Task.SourceType != "accounting_due_batch" ||
+                               item.Task.AvailableActions.Any(action =>
+                                   action is "schedule_dunning" or "confirm_settled"));
             items.Add(new YearTaskItem
             {
                 Record = item.Record,
@@ -1310,7 +1321,9 @@ public partial class MainWindow : Window
                         "skipped" or "cancelled" => Color.FromRgb(148, 163, 184),
                         _ => Color.FromRgb(37, 99, 235)
                     }),
-                IsActive = active
+                IsActive = active,
+                IsCompleted = item.Task.Status is "completed" or "auto_completed",
+                CanComplete = canComplete
             });
             previousMonth = due.Month;
         }
@@ -1337,14 +1350,69 @@ public partial class MainWindow : Window
     {
         if (sender is not ListBoxItem container || container.DataContext is not YearTaskItem item)
             return;
+        if (eventArgs.OriginalSource is DependencyObject source &&
+            FindVisualParent<CheckBox>(source) is not null)
+            return;
         item.IsSelected = !item.IsSelected;
         container.IsSelected = item.IsSelected;
         eventArgs.Handled = true;
         UpdateYearTaskSelection();
     }
 
+    private static T? FindVisualParent<T>(DependencyObject? current) where T : DependencyObject
+    {
+        while (current is not null)
+        {
+            if (current is T match) return match;
+            current = VisualTreeHelper.GetParent(current);
+        }
+        return null;
+    }
+
     private void TaskYearList_OnSelectionChanged(object sender, SelectionChangedEventArgs eventArgs) =>
         UpdateYearTaskSelection();
+
+    private async void TaskCompletionCheckBox_OnClick(object sender, RoutedEventArgs eventArgs)
+    {
+        if (sender is not CheckBox { DataContext: YearTaskItem item } checkBox ||
+            _backend is null || !item.CanComplete)
+            return;
+        checkBox.IsChecked = item.IsCompleted;
+        await RunModuleActionAsync(async () =>
+        {
+            if (!await CompleteTaskAsync(item.Record.Id)) return;
+            await LoadCurrentPageCoreAsync();
+            ModuleBusyText.Text = UiLocalization.Choose("Task completed.", "Aufgabe erledigt.");
+        });
+    }
+
+    private async Task<bool> CompleteTaskAsync(string taskId)
+    {
+        if (_backend is null) return false;
+        var record = await _backend.GetTaskAsync(taskId);
+        var task = TaskRecordModel.FromJson(record.Data);
+        if (task.AvailableActions.Contains("schedule_dunning"))
+        {
+            var dialog = new DunningScheduleDialog { Owner = this };
+            if (dialog.ShowDialog() != true) return false;
+            await _backend.ScheduleDunningAsync(
+                record.Id, record.Revision, dialog.DueDate.ToString("yyyy-MM-dd"));
+            return true;
+        }
+        if (task.AvailableActions.Contains("confirm_settled"))
+        {
+            var confirmed = MessageBox.Show(this, UiLocalization.Choose(
+                    "All linked invoices must be paid before this package is completed. Confirm settlement?",
+                    "Alle zugehörigen Rechnungen müssen bezahlt sein. Zahlung jetzt bestätigen?"),
+                "StructuralOffice", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            if (confirmed != MessageBoxResult.Yes) return false;
+            await _backend.ConfirmSettledAsync(record.Id, record.Revision);
+            return true;
+        }
+        await _backend.UpdateTaskAsync(
+            record.Id, record.Revision, new JsonObject { ["status"] = "completed" });
+        return true;
+    }
 
     private void UpdateYearTaskSelection()
     {
@@ -1499,6 +1567,7 @@ public partial class MainWindow : Window
 
     private void NewRecordButton_OnClick(object sender, RoutedEventArgs eventArgs)
     {
+        _creatingRecord = true;
         _selectedRecord = null;
         ModuleDataGrid.SelectedItem = null;
         EditorTitleText.Text = UiLocalization.Choose("New record", "Neuer Datensatz");
@@ -1615,7 +1684,7 @@ public partial class MainWindow : Window
                 throw new InvalidOperationException(UiLocalization.Choose(
                     "This area is read-only.", "Dieser Bereich ist schreibgeschützt."));
             }
-            if (_selectedRecord is null)
+            if (_creatingRecord || _selectedRecord is null)
             {
                 await _backend.CreateRecordAsync(_currentPage, data);
             }
@@ -1625,7 +1694,7 @@ public partial class MainWindow : Window
                     _currentPage, _selectedRecord.Record.Id,
                     _selectedRecord.Record.Revision, data);
             }
-            await EndCurrentEditSessionCoreAsync();
+            _creatingRecord = false;
             await LoadCurrentPageCoreAsync();
         }, UiLocalization.Choose("Record saved.", "Datensatz gespeichert."));
     }
@@ -1830,133 +1899,10 @@ public partial class MainWindow : Window
         }
         await RunModuleActionAsync(async () =>
         {
-            await EndCurrentEditSessionCoreAsync();
             await _backend.ArchiveRecordAsync(
                 _currentPage, _selectedRecord.Record.Id, _selectedRecord.Record.Revision);
             await LoadCurrentPageCoreAsync();
         }, "Datensatz archiviert.");
-    }
-
-    private bool CanAutomaticallyEdit(BackendRecord record)
-    {
-        if (record.ArchivedAt is not null) return false;
-        if (_currentDataMode == "tasks") return false;
-        return _currentDataMode == "live" &&
-               (_currentPage is "topics" or "routines" ||
-                (_developerMode && _currentPage == "invoices"));
-    }
-
-    private async Task BeginAutomaticEditSessionAsync(string collection, string recordId)
-    {
-        if (_backend is null) return;
-        try
-        {
-            if (string.Equals(_editCollection, collection, StringComparison.Ordinal) &&
-                string.Equals(_editRecordId, recordId, StringComparison.Ordinal) &&
-                !string.IsNullOrWhiteSpace(_editSessionId))
-            {
-                await UpdateEditorPresenceAsync(collection, recordId);
-                return;
-            }
-            await EndCurrentEditSessionCoreAsync();
-            var result = await _backend.StartEditingAsync(collection, recordId);
-            _editSessionId = result["session_id"]?.GetValue<string>();
-            _editRecordId = recordId;
-            _editCollection = collection;
-            _editPresenceRefreshCancellation = new CancellationTokenSource();
-            await UpdateEditorPresenceAsync(collection, recordId);
-            _ = RefreshEditPresenceAsync(
-                collection, recordId, _editPresenceRefreshCancellation.Token);
-        }
-        catch (Exception exception)
-        {
-            EditorPresenceText.Foreground = new SolidColorBrush(Color.FromRgb(246, 184, 72));
-            EditorPresenceText.Text = UiLocalization.Choose(
-                $"Automatic editing protection is temporarily unavailable: {exception.Message}",
-                $"Der automatische Bearbeitungsschutz ist vorübergehend nicht verfügbar: {exception.Message}");
-        }
-    }
-
-    private async Task RefreshEditPresenceAsync(
-        string collection, string recordId, CancellationToken cancellationToken)
-    {
-        while (!cancellationToken.IsCancellationRequested)
-        {
-            try
-            {
-                await Task.Delay(TimeSpan.FromMinutes(2), cancellationToken);
-                if (_backend is null || string.IsNullOrWhiteSpace(_editSessionId)) return;
-                await _backend.StartEditingAsync(
-                    collection, recordId, _editSessionId, cancellationToken);
-                await UpdateEditorPresenceAsync(collection, recordId);
-            }
-            catch (OperationCanceledException)
-            {
-                return;
-            }
-            catch
-            {
-                EditorPresenceText.Foreground =
-                    new SolidColorBrush(Color.FromRgb(246, 184, 72));
-                EditorPresenceText.Text = UiLocalization.Choose(
-                    "Editing protection will reconnect automatically.",
-                    "Der Bearbeitungsschutz wird automatisch neu verbunden.");
-            }
-        }
-    }
-
-    private async Task UpdateEditorPresenceAsync(string collection, string recordId)
-    {
-        if (_backend is null) return;
-        var result = await _backend.GetEditorsAsync(collection, recordId);
-        var otherEditors = result["editors"] is JsonArray editors
-            ? editors.OfType<JsonObject>()
-                .Where(item => !string.Equals(
-                    FirstText(item, "session_id"), _editSessionId, StringComparison.Ordinal))
-                .Select(item => FirstText(item, "user_name"))
-                .Where(name => !string.IsNullOrWhiteSpace(name))
-                .Distinct(StringComparer.CurrentCultureIgnoreCase)
-                .ToList()
-            : [];
-        if (otherEditors.Count == 0)
-        {
-            EditorPresenceText.Foreground = new SolidColorBrush(Color.FromRgb(99, 214, 155));
-            EditorPresenceText.Text = UiLocalization.Choose(
-                "Editing protection active · Your changes are protected automatically",
-                "Bearbeitungsschutz aktiv · Deine Änderungen werden automatisch geschützt");
-            return;
-        }
-        EditorPresenceText.Foreground = new SolidColorBrush(Color.FromRgb(246, 184, 72));
-        EditorPresenceText.Text = UiLocalization.Choose(
-            $"Also editing: {string.Join(", ", otherEditors)}",
-            $"Bearbeitet ebenfalls: {string.Join(", ", otherEditors)}");
-    }
-
-    private async Task EndCurrentEditSessionCoreAsync()
-    {
-        _editPresenceRefreshCancellation?.Cancel();
-        _editPresenceRefreshCancellation?.Dispose();
-        _editPresenceRefreshCancellation = null;
-        EditorPresenceText.Text = string.Empty;
-        if (_backend is null || string.IsNullOrWhiteSpace(_editSessionId) ||
-            string.IsNullOrWhiteSpace(_editCollection) || string.IsNullOrWhiteSpace(_editRecordId))
-        {
-            return;
-        }
-        var sessionId = _editSessionId;
-        var collection = _editCollection;
-        var recordId = _editRecordId;
-        _editSessionId = null;
-        _editCollection = null;
-        _editRecordId = null;
-        try
-        {
-            await _backend.EndEditingAsync(collection, recordId, sessionId);
-        }
-        catch
-        {
-            // Sessions expire automatically; cleanup must never block navigation or logout.
-        }
     }
 
     private async void SetTaskStatusButton_OnClick(object sender, RoutedEventArgs eventArgs)
@@ -2418,7 +2364,7 @@ public partial class MainWindow : Window
             var relevant = string.Equals(collection, _currentPage, StringComparison.OrdinalIgnoreCase) ||
                            (_currentPage == "documents" && collection == "invoices") ||
                            (_currentPage == "accounting" && collection is "tasks" or "invoices" or "accounting_rules");
-            if (relevant && !_moduleBusy && string.IsNullOrWhiteSpace(_editSessionId))
+            if (relevant && !_moduleBusy && !_creatingRecord)
             {
                 _ = LoadCurrentPageAsync();
             }
@@ -2644,7 +2590,8 @@ public partial class MainWindow : Window
         string Title,
         string Meta,
         string Duration,
-        Brush Accent);
+        Brush Accent,
+        bool CanComplete);
 
     private sealed class YearTaskItem : INotifyPropertyChanged
     {
@@ -2662,6 +2609,8 @@ public partial class MainWindow : Window
         public required string Status { get; init; }
         public required Brush Accent { get; init; }
         public bool IsActive { get; init; }
+        public bool IsCompleted { get; init; }
+        public bool CanComplete { get; init; }
 
         public bool IsSelected
         {

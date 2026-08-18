@@ -188,39 +188,6 @@ public sealed class HomeAssistantBackend : IStructuralOfficeDataBackend, IDispos
         return ParseRecord(root, true);
     }
 
-    public Task<JsonObject> GetEditorsAsync(
-        string collection,
-        string id,
-        CancellationToken cancellationToken = default) =>
-        GetJsonAsync($"editing/{Escape(collection)}/{Escape(id)}", cancellationToken);
-
-    public Task<JsonObject> StartEditingAsync(
-        string collection,
-        string id,
-        string? sessionId = null,
-        CancellationToken cancellationToken = default) =>
-        SendJsonAsync(
-            HttpMethod.Post,
-            $"editing/{Escape(collection)}/{Escape(id)}",
-            new JsonObject
-            {
-                ["client_id"] = "StructuralOffice-Windows",
-                ["ttl_seconds"] = 300,
-                ["session_id"] = sessionId
-            },
-            cancellationToken);
-
-    public async Task EndEditingAsync(
-        string collection,
-        string id,
-        string sessionId,
-        CancellationToken cancellationToken = default) =>
-        _ = await SendJsonAsync(
-            HttpMethod.Delete,
-            $"editing/{Escape(collection)}/{Escape(id)}?session_id={Escape(sessionId)}",
-            null,
-            cancellationToken);
-
     public async Task<BackendPage> GetTasksAsync(
         string? status = null,
         string? sourceType = null,
